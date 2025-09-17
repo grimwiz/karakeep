@@ -1,4 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import TurndownService from "turndown";
 
 import { createKarakeepClient } from "@karakeep/sdk";
@@ -12,11 +11,6 @@ export const karakeepClient = createKarakeepClient({
     "Content-Type": "application/json",
     authorization: `Bearer ${apiKey}`,
   },
-});
-
-export const mcpServer = new McpServer({
-  name: "Karakeep",
-  version: "0.23.0",
 });
 
 export const turndownService = new TurndownService();
