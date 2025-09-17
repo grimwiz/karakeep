@@ -9,6 +9,7 @@ when running the container.
 
 ## Building the image
 
+
 ```bash
 docker build \
   -f apps/mcp/docker/Dockerfile \

@@ -36,6 +36,7 @@ ENV NODE_ENV=production
 ENV KARAKEEP_API_ADDR=https://demo.karakeep.local
 ENV KARAKEEP_API_KEY=demo-api-key
 
+
 COPY --from=build /app/apps/mcp/dist ./dist
 
 EXPOSE 3333

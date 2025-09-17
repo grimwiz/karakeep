@@ -62,6 +62,7 @@ and `KARAKEEP_API_KEY`, and you can override them by passing `-e` flags to
 `docker run`. Follow the [Docker README](./docker/README.md) for commands that
 build the image and run it in OpenAPI or stdio mode.
 
+
 ## Running as an HTTP server
 
 In addition to the standard stdio-based transport, the CLI can expose the MCP
