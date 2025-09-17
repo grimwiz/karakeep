@@ -53,6 +53,15 @@ From Docker:
 }
 ```
 
+### Local testing with Docker from source
+
+The repository includes a multi-stage Dockerfile under
+`apps/mcp/docker/Dockerfile` that builds the MCP server directly from the
+workspace. The Dockerfile provides placeholder values for `KARAKEEP_API_ADDR`
+and `KARAKEEP_API_KEY`, and you can override them by passing `-e` flags to
+`docker run`. Follow the [Docker README](./docker/README.md) for commands that
+build the image and run it in OpenAPI or stdio mode.
+
 ## Running as an HTTP server
 
 In addition to the standard stdio-based transport, the CLI can expose the MCP
