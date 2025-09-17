@@ -43,6 +43,102 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PATH = "/mcp";
 
+const DEBUG_ENV_VAR = "KARAKEEP_MCP_DEBUG";
+const MAX_DEBUG_LEVEL = 2;
+const DEBUG_PREFIX = "[Karakeep MCP]";
+
+interface OpenApiRequestContext {
+  method: string;
+  path: string;
+}
+
+let cachedDebugLevel: number | undefined;
+
+function getDebugLevel(): number {
+  if (typeof cachedDebugLevel === "number") {
+    return cachedDebugLevel;
+  }
+
+  const raw = process.env[DEBUG_ENV_VAR];
+  if (!raw) {
+    cachedDebugLevel = 0;
+    return cachedDebugLevel;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    cachedDebugLevel = 0;
+    return cachedDebugLevel;
+  }
+
+  cachedDebugLevel = Math.min(parsed, MAX_DEBUG_LEVEL);
+  return cachedDebugLevel;
+}
+
+function logDebug(level: number, message: string, details?: unknown) {
+  if (getDebugLevel() < level) {
+    return;
+  }
+
+  const prefix = `${DEBUG_PREFIX} [debug${level}]`;
+  if (typeof details === "undefined") {
+    console.log(`${prefix} ${message}`);
+    return;
+  }
+
+  if (
+    typeof details === "string" ||
+    typeof details === "number" ||
+    typeof details === "boolean"
+  ) {
+    console.log(`${prefix} ${message}:`, details);
+    return;
+  }
+
+  console.log(`${prefix} ${message}`, details);
+}
+
+function logOpenApiRequest(context: OpenApiRequestContext) {
+  logDebug(1, `OpenAPI request ${context.method} ${context.path}`);
+}
+
+function logOpenApiRequestData(
+  context: OpenApiRequestContext,
+  data: unknown,
+  description = "payload",
+) {
+  if (getDebugLevel() < 2) {
+    return;
+  }
+
+  logDebug(2, `OpenAPI request ${description}`, {
+    method: context.method,
+    path: context.path,
+    data,
+  });
+}
+
+function logOpenApiResponse(
+  context: OpenApiRequestContext,
+  statusCode: number,
+  payload: unknown,
+) {
+  logDebug(
+    1,
+    `OpenAPI response ${context.method} ${context.path} -> ${statusCode}`,
+  );
+  if (getDebugLevel() < 2) {
+    return;
+  }
+
+  logDebug(2, "OpenAPI response payload", {
+    method: context.method,
+    path: context.path,
+    status: statusCode,
+    body: payload,
+  });
+}
+
 function printHelp() {
   console.log(`Usage: karakeep-mcp [options]
 
@@ -176,9 +272,17 @@ function setCorsHeaders(res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
 }
 
-function sendJson(res: ServerResponse, statusCode: number, body: unknown) {
+function sendJson(
+  res: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  context?: OpenApiRequestContext,
+) {
   if (res.headersSent) {
     return;
+  }
+  if (context) {
+    logOpenApiResponse(context, statusCode, body);
   }
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
@@ -216,48 +320,72 @@ async function parseJsonBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-function handleHttpError(res: ServerResponse, error: unknown) {
+function handleHttpError(
+  res: ServerResponse,
+  error: unknown,
+  context?: OpenApiRequestContext,
+) {
   if (error instanceof SyntaxError) {
     setCorsHeaders(res);
-    sendJson(res, 400, {
-      error: {
-        message: "Invalid JSON payload",
+    sendJson(
+      res,
+      400,
+      {
+        error: {
+          message: "Invalid JSON payload",
+        },
       },
-    });
+      context,
+    );
     return;
   }
 
   if (error instanceof ZodError) {
     setCorsHeaders(res);
-    sendJson(res, 400, {
-      error: {
-        message: "Invalid request",
-        details: error.flatten(),
+    sendJson(
+      res,
+      400,
+      {
+        error: {
+          message: "Invalid request",
+          details: error.flatten(),
+        },
       },
-    });
+      context,
+    );
     return;
   }
 
   if (error instanceof ServiceError) {
     setCorsHeaders(res);
-    sendJson(res, error.status, {
-      error: {
-        message: error.message,
-        code: error.code,
-        status: error.status,
-        details: error.details,
+    sendJson(
+      res,
+      error.status,
+      {
+        error: {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+          details: error.details,
+        },
       },
-    });
+      context,
+    );
     return;
   }
 
   console.error("[Karakeep MCP] Unexpected HTTP error", error);
   setCorsHeaders(res);
-  sendJson(res, 500, {
-    error: {
-      message: "Internal server error",
+  sendJson(
+    res,
+    500,
+    {
+      error: {
+        message: "Internal server error",
+      },
     },
-  });
+    context,
+  );
 }
 
 async function startOpenApiServer({ port, host, path }: CliOptions) {
@@ -266,24 +394,30 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
   const config = buildOpenApiConfig(basePath);
 
   const httpServer = createServer(async (req, res) => {
+    const method = req.method ?? "UNKNOWN";
+    let context: OpenApiRequestContext = {
+      method,
+      path: req.url ?? "[unknown]",
+    };
+
     try {
       if (!req.url) {
+        logOpenApiRequest(context);
         setCorsHeaders(res);
-        sendJson(res, 400, {
-          error: { message: "Bad Request" },
-        });
+        sendJson(
+          res,
+          400,
+          {
+            error: { message: "Bad Request" },
+          },
+          context,
+        );
         return;
       }
 
       const hostHeader = req.headers.host ?? `${host}:${port}`;
       const requestUrl = new URL(req.url, `http://${hostHeader}`);
-
-      if (req.method === "OPTIONS") {
-        setCorsHeaders(res);
-        res.statusCode = 204;
-        res.end();
-        return;
-      }
+      context = { method, path: requestUrl.pathname };
 
       if (
         basePath &&
@@ -292,6 +426,9 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
             requestUrl.pathname[basePath.length] !== "/"))
       ) {
         res.statusCode = 404;
+        setCorsHeaders(res);
+        logOpenApiRequest(context);
+        logOpenApiResponse(context, 404, "Not Found");
         res.end("Not Found");
         return;
       }
@@ -302,42 +439,61 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
       const relativePath = relativePathRaw === "" ? "/" : relativePathRaw;
       const segments = relativePath.split("/").filter(Boolean);
 
+      context = { method, path: relativePath };
+
+      logOpenApiRequest(context);
+
+      if (req.method === "OPTIONS") {
+        setCorsHeaders(res);
+        res.statusCode = 204;
+        logOpenApiResponse(context, 204, null);
+        res.end();
+        return;
+      }
+
       if (req.method === "GET" && relativePath === "/openapi.json") {
         setCorsHeaders(res);
-        sendJson(res, 200, spec);
+        sendJson(res, 200, spec, context);
         return;
       }
 
       if (req.method === "GET" && relativePath === "/openapi.conf") {
         setCorsHeaders(res);
-        sendJson(res, 200, config);
+        sendJson(res, 200, config, context);
         return;
       }
 
       if (req.method === "GET" && relativePath === "/") {
         setCorsHeaders(res);
-        sendJson(res, 200, {
-          status: "ok",
-          message: "Karakeep MCP OpenAPI endpoint",
-        });
+        sendJson(
+          res,
+          200,
+          {
+            status: "ok",
+            message: "Karakeep MCP OpenAPI endpoint",
+          },
+          context,
+        );
         return;
       }
 
       if (req.method === "POST" && relativePath === "/bookmarks/search") {
         const body = await parseJsonBody(req);
         const input = SearchBookmarksInputSchema.parse(body ?? {});
+        logOpenApiRequestData(context, { rawBody: body, input });
         const result = await searchBookmarks(input);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       if (req.method === "POST" && relativePath === "/bookmarks") {
         const body = await parseJsonBody(req);
         const input = CreateBookmarkInputSchema.parse(body ?? {});
+        logOpenApiRequestData(context, { rawBody: body, input });
         const result = await createBookmark(input);
         setCorsHeaders(res);
-        sendJson(res, 201, result);
+        sendJson(res, 201, result, context);
         return;
       }
 
@@ -348,9 +504,10 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
       ) {
         const bookmarkId = decodeURIComponent(segments[1]!);
         const input = GetBookmarkInputSchema.parse({ bookmarkId });
+        logOpenApiRequestData(context, { params: input });
         const result = await getBookmark(input);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
@@ -362,25 +519,27 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
       ) {
         const bookmarkId = decodeURIComponent(segments[1]!);
         const input = GetBookmarkContentInputSchema.parse({ bookmarkId });
+        logOpenApiRequestData(context, { params: input });
         const result = await getBookmarkContent(input);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       if (req.method === "GET" && relativePath === "/lists") {
         const result = await getLists();
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       if (req.method === "POST" && relativePath === "/lists") {
         const body = await parseJsonBody(req);
         const input = CreateListInputSchema.parse(body ?? {});
+        logOpenApiRequestData(context, { rawBody: body, input });
         const result = await createList(input);
         setCorsHeaders(res);
-        sendJson(res, 201, result);
+        sendJson(res, 201, result, context);
         return;
       }
 
@@ -394,9 +553,10 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
           listId: decodeURIComponent(segments[1]!),
           bookmarkId: decodeURIComponent(segments[3]!),
         });
+        logOpenApiRequestData(context, { params: mutationInput });
         const result = await addBookmarkToList(mutationInput);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
@@ -410,35 +570,39 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
           listId: decodeURIComponent(segments[1]!),
           bookmarkId: decodeURIComponent(segments[3]!),
         });
+        logOpenApiRequestData(context, { params: mutationInput });
         const result = await removeBookmarkFromList(mutationInput);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       if (req.method === "POST" && relativePath === "/tags/attach") {
         const body = await parseJsonBody(req);
         const input = TagMutationInputSchema.parse(body ?? {});
+        logOpenApiRequestData(context, { rawBody: body, input });
         const result = await attachTagsToBookmark(input);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       if (req.method === "POST" && relativePath === "/tags/detach") {
         const body = await parseJsonBody(req);
         const input = TagMutationInputSchema.parse(body ?? {});
+        logOpenApiRequestData(context, { rawBody: body, input });
         const result = await detachTagsFromBookmark(input);
         setCorsHeaders(res);
-        sendJson(res, 200, result);
+        sendJson(res, 200, result, context);
         return;
       }
 
       res.statusCode = 404;
       setCorsHeaders(res);
+      logOpenApiResponse(context, 404, "Not Found");
       res.end("Not Found");
     } catch (error) {
-      handleHttpError(res, error);
+      handleHttpError(res, error, context);
     }
   });
 
@@ -461,6 +625,10 @@ async function startStdioServer() {
 
 async function run() {
   const options = parseCliOptions(process.argv.slice(2));
+  const debugLevel = getDebugLevel();
+  if (debugLevel > 0) {
+    logDebug(1, "Debug logging enabled", { level: debugLevel });
+  }
 
   if (options.mode === "openapi") {
     await startOpenApiServer(options);
