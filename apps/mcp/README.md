@@ -86,6 +86,13 @@ By default the server listens on `0.0.0.0:3000` and exposes its endpoints under
 - `--path` / `KARAKEEP_MCP_PATH`: change the base path for HTTP requests.
 - `--transport` / `KARAKEEP_MCP_TRANSPORT`: choose between `stdio` and
   `openapi`.
+- `KARAKEEP_MCP_DEBUG`: optional debug logging level for OpenAPI requests.
+
+Set `KARAKEEP_MCP_DEBUG=1` to print a concise log entry whenever Open WebUI
+issues a request or receives a response. Set the level to `2` for detailed logs
+that include the request payload (as provided by Open WebUI) and the structured
+JSON returned by the MCP server. The variable can be supplied via `-e` when
+running the Docker container.
 
 When running in OpenAPI mode, the server serves:
 
