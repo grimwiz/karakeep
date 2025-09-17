@@ -13,7 +13,7 @@ when running the container.
 ```bash
 docker build \
   -f apps/mcp/docker/Dockerfile \
-  -t karakeep-mcp-test \
+  -t karakeep-mcp-openapi \
   .
 ```
 
@@ -28,7 +28,7 @@ docker run --rm \
   -p 3333:3333 \
   -e KARAKEEP_API_ADDR=https://api.example.com \
   -e KARAKEEP_API_KEY=another-token \
-  karakeep-mcp-test
+  karakeep-mcp-openapi
 ```
 
 If you are testing with the demo service, you can rely on the baked-in defaults
@@ -38,7 +38,7 @@ If you prefer to interact with the MCP server over stdio, override the default
 command and keep the container attached to your terminal.
 
 ```bash
-docker run --rm -it karakeep-mcp-test --stdio
+docker run --rm -it karakeep-mcp-openapi --stdio
 ```
 
 With the server running, you can point compatible MCP clients (for example,

@@ -10,6 +10,7 @@ RUN corepack enable \
   && apk add --no-cache libc6-compat python3 make g++
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY patches patches
 COPY apps/mcp/package.json apps/mcp/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY tooling/prettier/package.json tooling/prettier/package.json
