@@ -33,11 +33,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-ARG KARAKEEP_API_ADDR=https://demo.karakeep.local
-ARG KARAKEEP_API_KEY=demo-api-key
+ENV KARAKEEP_API_ADDR=https://demo.karakeep.local
+ENV KARAKEEP_API_KEY=demo-api-key
 
-ENV KARAKEEP_API_ADDR=${KARAKEEP_API_ADDR}
-ENV KARAKEEP_API_KEY=${KARAKEEP_API_KEY}
 
 COPY --from=build /app/apps/mcp/dist ./dist
 

@@ -57,10 +57,11 @@ From Docker:
 
 The repository includes a multi-stage Dockerfile under
 `apps/mcp/docker/Dockerfile` that builds the MCP server directly from the
-workspace. The Dockerfile sets `KARAKEEP_API_ADDR` and `KARAKEEP_API_KEY` during
-the build so the resulting image is ready to exercise the tools. Follow the
-[Docker README](./docker/README.md) for commands that build the image and run it
-in OpenAPI or stdio mode.
+workspace. The Dockerfile provides placeholder values for `KARAKEEP_API_ADDR`
+and `KARAKEEP_API_KEY`, and you can override them by passing `-e` flags to
+`docker run`. Follow the [Docker README](./docker/README.md) for commands that
+build the image and run it in OpenAPI or stdio mode.
+
 
 ## Running as an HTTP server
 
