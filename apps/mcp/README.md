@@ -52,3 +52,38 @@ From Docker:
   }
 }
 ```
+
+## Running as an HTTP server
+
+In addition to the standard stdio-based transport, the CLI can expose the MCP
+tools through a lightweight OpenAPI surface that returns JSON responses. This
+mode is designed for integrations such as Open WebUI that expect OpenAPI
+metadata (including a `cursor` verb) instead of the MCP streamable transport.
+
+Start the HTTP server by passing the `--openapi` flag (or by setting the
+environment variable `KARAKEEP_MCP_TRANSPORT=openapi`). The legacy `--http`
+flag still works as an alias.
+
+```
+karakeep-mcp --openapi --port 3333 --host 0.0.0.0 --path /mcp
+```
+
+By default the server listens on `0.0.0.0:3000` and exposes its endpoints under
+`/mcp`. The following options/environment variables are supported:
+
+- `--port` / `KARAKEEP_MCP_PORT` (or `PORT`): change the listening port.
+- `--host` / `KARAKEEP_MCP_HOST`: change the host/interface.
+- `--path` / `KARAKEEP_MCP_PATH`: change the base path for HTTP requests.
+- `--transport` / `KARAKEEP_MCP_TRANSPORT`: choose between `stdio` and
+  `openapi`.
+
+When running in OpenAPI mode, the server serves:
+
+- `${path}/openapi.json` – the OpenAPI schema describing all bookmark, list,
+  and tag operations, with JSON request/response payloads.
+- `${path}/openapi.conf` – a helper configuration file for Open WebUI that
+  maps operations (including the `cursor` verb) to their OpenAPI
+  `operationId`s.
+
+All HTTP responses include structured JSON, so no external shim is required to
+consume the tool results.
