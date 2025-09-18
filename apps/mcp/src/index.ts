@@ -41,7 +41,7 @@ interface CliOptions {
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = "0.0.0.0";
-const DEFAULT_PATH = "/mcp";
+const DEFAULT_PATH = "/";
 
 const DEBUG_ENV_VAR = "KARAKEEP_MCP_DEBUG";
 const MAX_DEBUG_LEVEL = 2;
@@ -451,8 +451,19 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
         return;
       }
 
-      if (req.method === "GET" && relativePath === "/openapi.json") {
+      if (
+        relativePath === "/openapi.json" &&
+        (req.method === "GET" || req.method === "POST" || req.method === "HEAD")
+      ) {
         setCorsHeaders(res);
+        if (req.method === "HEAD") {
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "application/json");
+          logOpenApiResponse(context, 200, null);
+          res.end();
+          return;
+        }
+
         sendJson(res, 200, spec, context);
         return;
       }
