@@ -50,16 +50,19 @@ const searchBookmarksInputSchema = {
     query: { type: "string" },
     limit: { type: "integer", minimum: 1, maximum: 100 },
     nextCursor: { type: "string" },
+    cursor: { type: "string" },
   },
   additionalProperties: false,
 } as const;
 
 const searchBookmarksResultSchema = {
   type: "object",
-  required: ["bookmarks", "nextCursor", "text"],
+  required: ["bookmarks", "items", "nextCursor", "cursor", "text"],
   properties: {
     bookmarks: { type: "array", items: bookmarkSummarySchema },
+    items: { type: "array", items: bookmarkSummarySchema },
     nextCursor: { type: ["string", "null"] },
+    cursor: { type: ["string", "null"] },
     text: { type: "string" },
   },
   additionalProperties: false,
