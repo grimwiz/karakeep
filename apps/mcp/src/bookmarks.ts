@@ -7,6 +7,7 @@ import {
   BookmarkSummary,
   compactBookmark,
   extractApiError,
+  formatBookmarkSearchResult,
   ServiceError,
   toBookmarkSummary,
   toMcpToolError,
@@ -23,6 +24,7 @@ export type SearchBookmarksInput = z.infer<typeof SearchBookmarksInputSchema>;
 export interface SearchBookmarksResult {
   bookmarks: BookmarkSummary[];
   nextCursor: string | null;
+  text: string;
 }
 
 export const GetBookmarkInputSchema = z.object({
@@ -75,9 +77,13 @@ export async function searchBookmarks(
     });
   }
 
+  const bookmarks = res.data.bookmarks.map(toBookmarkSummary);
+  const nextCursor = res.data.nextCursor;
+
   return {
-    bookmarks: res.data.bookmarks.map(toBookmarkSummary),
-    nextCursor: res.data.nextCursor,
+    bookmarks,
+    nextCursor,
+    text: formatBookmarkSearchResult(bookmarks, nextCursor, input.query),
   };
 }
 
@@ -216,11 +222,7 @@ machine learning is:fav`),
           content: [
             {
               type: "text",
-              text: `${result.bookmarks
-                .map((bookmark) => compactBookmark(bookmark))
-                .join(
-                  "\n\n",
-                )}\n\nNext cursor: ${result.nextCursor ? `'${result.nextCursor}'` : "no more pages"}`,
+              text: result.text,
             },
           ],
           structuredContent: {
