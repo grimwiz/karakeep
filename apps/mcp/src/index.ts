@@ -32,6 +32,8 @@ import { ServiceError } from "./utils";
 
 type TransportMode = "stdio" | "openapi";
 
+type PathSource = "default" | "env" | "cli";
+
 interface CliOptions {
   mode: TransportMode;
   port: number;
@@ -41,7 +43,7 @@ interface CliOptions {
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = "0.0.0.0";
-const DEFAULT_PATH = "/mcp";
+const DEFAULT_PATH = "/";
 
 const DEBUG_ENV_VAR = "KARAKEEP_MCP_DEBUG";
 const MAX_DEBUG_LEVEL = 2;
@@ -200,7 +202,14 @@ function parseCliOptions(argv: string[]): CliOptions {
     DEFAULT_PORT,
   );
   let host = process.env.KARAKEEP_MCP_HOST ?? DEFAULT_HOST;
-  let path = normalizePath(process.env.KARAKEEP_MCP_PATH ?? DEFAULT_PATH);
+  let path = DEFAULT_PATH;
+  let pathSource: PathSource = "default";
+
+  const envPath = process.env.KARAKEEP_MCP_PATH;
+  if (typeof envPath === "string") {
+    path = normalizePath(envPath);
+    pathSource = "env";
+  }
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -253,6 +262,7 @@ function parseCliOptions(argv: string[]): CliOptions {
           throw new Error("Missing value for --path");
         }
         path = normalizePath(value);
+        pathSource = "cli";
         i += 1;
         break;
       }
@@ -261,6 +271,14 @@ function parseCliOptions(argv: string[]): CliOptions {
           throw new Error(`Unknown option: ${arg}`);
         }
     }
+  }
+
+  if (pathSource === "default" && path !== DEFAULT_PATH) {
+    logDebug(1, "Resetting legacy default base path", {
+      previousPath: path,
+      defaultPath: DEFAULT_PATH,
+    });
+    path = DEFAULT_PATH;
   }
 
   return { mode, port, host, path };
@@ -451,8 +469,19 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
         return;
       }
 
-      if (req.method === "GET" && relativePath === "/openapi.json") {
+      if (
+        relativePath === "/openapi.json" &&
+        (req.method === "GET" || req.method === "POST" || req.method === "HEAD")
+      ) {
         setCorsHeaders(res);
+        if (req.method === "HEAD") {
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "application/json");
+          logOpenApiResponse(context, 200, null);
+          res.end();
+          return;
+        }
+
         sendJson(res, 200, spec, context);
         return;
       }
