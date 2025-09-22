@@ -13,17 +13,25 @@ import {
   toMcpToolError,
 } from "./utils";
 
-export const SearchBookmarksInputSchema = z.object({
-  query: z.string(),
-  limit: z.number().int().positive().max(100).optional().default(10),
-  nextCursor: z.string().optional(),
-});
+export const SearchBookmarksInputSchema = z
+  .object({
+    query: z.string(),
+    limit: z.number().int().positive().max(100).optional().default(10),
+    nextCursor: z.string().optional(),
+    cursor: z.string().optional(),
+  })
+  .refine((value) => !(value.nextCursor && value.cursor), {
+    message: "Provide either nextCursor or cursor, not both.",
+    path: ["cursor"],
+  });
 
 export type SearchBookmarksInput = z.infer<typeof SearchBookmarksInputSchema>;
 
 export interface SearchBookmarksResult {
   bookmarks: BookmarkSummary[];
+  items: BookmarkSummary[];
   nextCursor: string | null;
+  cursor: string | null;
   text: string;
 }
 
@@ -57,13 +65,14 @@ export interface BookmarkContentResult {
 export async function searchBookmarks(
   input: SearchBookmarksInput,
 ): Promise<SearchBookmarksResult> {
+  const cursor = input.nextCursor ?? input.cursor;
   const res = await karakeepClient.GET("/bookmarks/search", {
     params: {
       query: {
         q: input.query,
         limit: input.limit,
         includeContent: false,
-        cursor: input.nextCursor,
+        cursor: cursor ?? undefined,
       },
     },
   });
@@ -78,11 +87,13 @@ export async function searchBookmarks(
   }
 
   const bookmarks = res.data.bookmarks.map(toBookmarkSummary);
-  const nextCursor = res.data.nextCursor;
+  const nextCursor = res.data.nextCursor ?? null;
 
   return {
     bookmarks,
+    items: bookmarks,
     nextCursor,
+    cursor: nextCursor,
     text: formatBookmarkSearchResult(bookmarks, nextCursor, input.query),
   };
 }
@@ -227,7 +238,9 @@ machine learning is:fav`),
           ],
           structuredContent: {
             bookmarks: result.bookmarks,
+            items: result.items,
             nextCursor: result.nextCursor,
+            cursor: result.cursor,
           },
         };
       } catch (error) {
