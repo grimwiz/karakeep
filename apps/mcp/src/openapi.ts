@@ -56,10 +56,11 @@ const searchBookmarksInputSchema = {
 
 const searchBookmarksResultSchema = {
   type: "object",
-  required: ["bookmarks", "nextCursor"],
+  required: ["bookmarks", "nextCursor", "text"],
   properties: {
     bookmarks: { type: "array", items: bookmarkSummarySchema },
     nextCursor: { type: ["string", "null"] },
+    text: { type: "string" },
   },
   additionalProperties: false,
 } as const;

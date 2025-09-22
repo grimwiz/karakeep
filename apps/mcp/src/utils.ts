@@ -197,6 +197,23 @@ export function compactBookmark(summary: BookmarkSummary): string {
   return `Bookmark ID: ${summary.id}\n  Created at: ${summary.createdAt}\n  Title: ${summary.title ?? ""}\n  Summary: ${summary.summary ?? ""}\n  Note: ${summary.note ?? ""}\n  ${details}\n  Tags: ${summary.tags.join(", ")}`;
 }
 
+export function formatBookmarkSearchResult(
+  bookmarks: BookmarkSummary[],
+  nextCursor: string | null,
+  query?: string,
+): string {
+  const header =
+    bookmarks.length === 0
+      ? query
+        ? `No bookmarks matched the query "${query}".`
+        : "No bookmarks matched the current query."
+      : bookmarks.map((bookmark) => compactBookmark(bookmark)).join("\n\n");
+
+  const cursorLine = `Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}`;
+
+  return `${header}\n\n${cursorLine}`;
+}
+
 export interface ListSummary {
   id: string;
   name: string;

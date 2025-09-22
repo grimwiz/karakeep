@@ -100,6 +100,10 @@ function logDebug(level: number, message: string, details?: unknown) {
   console.log(`${prefix} ${message}`, details);
 }
 
+function logInfo(message: string, details?: unknown) {
+  logDebug(0, message, details);
+}
+
 function logOpenApiRequest(context: OpenApiRequestContext) {
   logDebug(1, `OpenAPI request ${context.method} ${context.path}`);
 }
@@ -509,8 +513,14 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
       if (req.method === "POST" && relativePath === "/bookmarks/search") {
         const body = await parseJsonBody(req);
         const input = SearchBookmarksInputSchema.parse(body ?? {});
+        logInfo("OpenAPI search-bookmarks request", {
+          query: input.query,
+          limit: input.limit,
+          nextCursor: input.nextCursor ?? null,
+        });
         logOpenApiRequestData(context, { rawBody: body, input });
         const result = await searchBookmarks(input);
+        logInfo("OpenAPI search-bookmarks response text", result.text);
         setCorsHeaders(res);
         sendJson(res, 200, result, context);
         return;
@@ -636,12 +646,70 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
   });
 
   await new Promise<void>((resolve, reject) => {
-    httpServer.once("error", reject);
+    let isShuttingDown = false;
+
+    const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+
+    function cleanup() {
+      for (const signal of signals) {
+        process.removeListener(signal, handleSignal);
+      }
+      httpServer.removeListener("error", onError);
+      httpServer.removeListener("close", onClose);
+    }
+
+    function finalize() {
+      cleanup();
+      resolve();
+    }
+
+    function onClose() {
+      logInfo("OpenAPI server stopped");
+      finalize();
+    }
+
+    function handleSignal(signal: NodeJS.Signals) {
+      if (isShuttingDown) {
+        console.error(
+          `[Karakeep MCP] Received ${signal} during shutdown, forcing exit`,
+        );
+        process.exit(1);
+        return;
+      }
+
+      isShuttingDown = true;
+      logInfo(`Received ${signal}, shutting down OpenAPI server`);
+      httpServer.close((closeError) => {
+        const error = closeError as NodeJS.ErrnoException | undefined;
+        if (error && error.code !== "ERR_SERVER_NOT_RUNNING") {
+          cleanup();
+          reject(error);
+          return;
+        }
+
+        if (error && error.code === "ERR_SERVER_NOT_RUNNING") {
+          onClose();
+        }
+        // If there was no error we wait for the "close" event to resolve.
+      });
+    }
+
+    function onError(error: Error) {
+      cleanup();
+      reject(error);
+    }
+
+    httpServer.on("error", onError);
+    httpServer.on("close", onClose);
+
+    for (const signal of signals) {
+      process.on(signal, handleSignal);
+    }
+
     httpServer.listen(port, host, () => {
       console.log(
         `Karakeep MCP OpenAPI server listening on http://${host}:${port}${path === "/" ? "" : path}`,
       );
-      resolve();
     });
   });
 }
