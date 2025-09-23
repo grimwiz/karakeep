@@ -19,7 +19,6 @@ export const SearchBookmarksInputSchema = z
     limit: z.number().int().positive().max(100).optional().default(10),
     nextCursor: z.string().nullable().optional(),
     cursor: z.string().nullable().optional(),
-
   })
   .refine((value) => !(value.nextCursor && value.cursor), {
     message: "Provide either nextCursor or cursor, not both.",
@@ -74,7 +73,7 @@ export interface BookmarkContentResult {
 export async function searchBookmarks(
   input: SearchBookmarksInput,
 ): Promise<SearchBookmarksResult> {
-  const cursor = input.nextCursor ?? input.cursor;
+  const cursor = input.nextCursor ?? input.cursor ?? null;
   const res = await karakeepClient.GET("/bookmarks/search", {
     params: {
       query: {
@@ -101,7 +100,7 @@ export async function searchBookmarks(
   const paginatedData = {
     items: bookmarks,
     nextCursor,
-    cursor: nextCursor,
+    cursor,
     hasMore,
   } as const;
 
@@ -110,7 +109,7 @@ export async function searchBookmarks(
     items: bookmarks,
     results: bookmarks,
     nextCursor,
-    cursor: nextCursor,
+    cursor,
     hasMore,
     data: paginatedData,
     text: formatBookmarkSearchResult(bookmarks, nextCursor, input.query),
