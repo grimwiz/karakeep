@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
+import { withToolLogging } from "./logging";
 import { karakeepClient } from "./shared";
 import { extractApiError, ServiceError, toMcpToolError } from "./utils";
 
@@ -89,25 +90,28 @@ export function registerTagTools(server: McpServer) {
       bookmarkId: z.string().describe(`The bookmarkId to attach the tag to.`),
       tagsToAttach: z.array(z.string()).describe(`The tag names to attach.`),
     },
-    async ({ bookmarkId, tagsToAttach }): Promise<CallToolResult> => {
-      try {
-        const result = await attachTagsToBookmark({
-          bookmarkId,
-          tags: tagsToAttach,
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.message,
-            },
-          ],
-          structuredContent: { result },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+    withToolLogging(
+      "attach-tag-to-bookmark",
+      async ({ bookmarkId, tagsToAttach }): Promise<CallToolResult> => {
+        try {
+          const result = await attachTagsToBookmark({
+            bookmarkId,
+            tags: tagsToAttach,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.message,
+              },
+            ],
+            structuredContent: { result },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -117,24 +121,27 @@ export function registerTagTools(server: McpServer) {
       bookmarkId: z.string().describe(`The bookmarkId to detach the tag from.`),
       tagsToDetach: z.array(z.string()).describe(`The tag names to detach.`),
     },
-    async ({ bookmarkId, tagsToDetach }): Promise<CallToolResult> => {
-      try {
-        const result = await detachTagsFromBookmark({
-          bookmarkId,
-          tags: tagsToDetach,
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.message,
-            },
-          ],
-          structuredContent: { result },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+    withToolLogging(
+      "detach-tag-from-bookmark",
+      async ({ bookmarkId, tagsToDetach }): Promise<CallToolResult> => {
+        try {
+          const result = await detachTagsFromBookmark({
+            bookmarkId,
+            tags: tagsToDetach,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.message,
+              },
+            ],
+            structuredContent: { result },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 }

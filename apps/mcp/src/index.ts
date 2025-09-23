@@ -3,6 +3,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ZodError } from "zod";
 
+import type { OpenApiRequestContext } from "./logging";
 import {
   createBookmark,
   CreateBookmarkInputSchema,
@@ -21,6 +22,14 @@ import {
   getLists,
   removeBookmarkFromList,
 } from "./lists";
+import {
+  getDebugLevel,
+  logDebug,
+  logInfo,
+  logOpenApiRequest,
+  logOpenApiRequestData,
+  logOpenApiResponse,
+} from "./logging";
 import { buildOpenApiConfig, buildOpenApiSpec } from "./openapi";
 import { createMcpServer } from "./server";
 import {
@@ -44,106 +53,6 @@ interface CliOptions {
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PATH = "/";
-
-const DEBUG_ENV_VAR = "KARAKEEP_MCP_DEBUG";
-const MAX_DEBUG_LEVEL = 2;
-const DEBUG_PREFIX = "[Karakeep MCP]";
-
-interface OpenApiRequestContext {
-  method: string;
-  path: string;
-}
-
-let cachedDebugLevel: number | undefined;
-
-function getDebugLevel(): number {
-  if (typeof cachedDebugLevel === "number") {
-    return cachedDebugLevel;
-  }
-
-  const raw = process.env[DEBUG_ENV_VAR];
-  if (!raw) {
-    cachedDebugLevel = 0;
-    return cachedDebugLevel;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    cachedDebugLevel = 0;
-    return cachedDebugLevel;
-  }
-
-  cachedDebugLevel = Math.min(parsed, MAX_DEBUG_LEVEL);
-  return cachedDebugLevel;
-}
-
-function logDebug(level: number, message: string, details?: unknown) {
-  if (getDebugLevel() < level) {
-    return;
-  }
-
-  const prefix = `${DEBUG_PREFIX} [debug${level}]`;
-  if (typeof details === "undefined") {
-    console.log(`${prefix} ${message}`);
-    return;
-  }
-
-  if (
-    typeof details === "string" ||
-    typeof details === "number" ||
-    typeof details === "boolean"
-  ) {
-    console.log(`${prefix} ${message}:`, details);
-    return;
-  }
-
-  console.log(`${prefix} ${message}`, details);
-}
-
-function logInfo(message: string, details?: unknown) {
-  logDebug(0, message, details);
-}
-
-function logOpenApiRequest(context: OpenApiRequestContext) {
-  logDebug(1, `OpenAPI request ${context.method} ${context.path}`);
-}
-
-function logOpenApiRequestData(
-  context: OpenApiRequestContext,
-  data: unknown,
-  description = "payload",
-) {
-  if (getDebugLevel() < 2) {
-    return;
-  }
-
-  logDebug(2, `OpenAPI request ${description}`, {
-    method: context.method,
-    path: context.path,
-    data,
-  });
-}
-
-function logOpenApiResponse(
-  context: OpenApiRequestContext,
-  statusCode: number,
-  payload: unknown,
-) {
-  logDebug(
-    1,
-    `OpenAPI response ${context.method} ${context.path} -> ${statusCode}`,
-  );
-  if (getDebugLevel() < 2) {
-    return;
-  }
-
-  logDebug(2, "OpenAPI response payload", {
-    method: context.method,
-    path: context.path,
-    status: statusCode,
-    body: payload,
-  });
-}
 
 function printHelp() {
   console.log(`Usage: karakeep-mcp [options]
@@ -525,8 +434,8 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
           nextCursor: result.nextCursor,
           hasMore: result.hasMore,
         });
-        logDebug(2, "OpenAPI search-bookmarks response text", result.text);
-        logDebug(2, "OpenAPI search-bookmarks response data", result.data);
+        logDebug(1, "OpenAPI search-bookmarks response text", result.text);
+        logDebug(1, "OpenAPI search-bookmarks response data", result.data);
         setCorsHeaders(res);
         sendJson(res, 200, result, context);
         return;

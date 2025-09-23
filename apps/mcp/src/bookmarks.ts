@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
+import { logDebug, withToolLogging } from "./logging";
 import { karakeepClient, turndownService } from "./shared";
 import {
   BookmarkSummary,
@@ -74,10 +75,20 @@ export async function searchBookmarks(
   input: SearchBookmarksInput,
 ): Promise<SearchBookmarksResult> {
   const cursor = input.nextCursor ?? input.cursor ?? null;
+  const normalizedQuery = input.query.trim().toLowerCase();
+  const effectiveQuery = normalizedQuery === "bookmarks" ? "*" : input.query;
+
+  if (effectiveQuery !== input.query) {
+    logDebug(1, "Translated generic bookmarks query to wildcard", {
+      originalQuery: input.query,
+      effectiveQuery,
+    });
+  }
+
   const res = await karakeepClient.GET("/bookmarks/search", {
     params: {
       query: {
-        q: input.query,
+        q: effectiveQuery,
         limit: input.limit,
         includeContent: false,
         cursor: cursor ?? undefined,
@@ -112,7 +123,7 @@ export async function searchBookmarks(
     cursor,
     hasMore,
     data: paginatedData,
-    text: formatBookmarkSearchResult(bookmarks, nextCursor, input.query),
+    text: formatBookmarkSearchResult(bookmarks, nextCursor, effectiveQuery),
   };
 }
 
@@ -250,40 +261,43 @@ machine learning is:fav`),
           `An alias for nextCursor that can be supplied by clients expecting a generic cursor field.`,
         ),
     },
-    async ({ query, limit, nextCursor, cursor }): Promise<CallToolResult> => {
-      try {
-        const result = await searchBookmarks({
-          query,
-          limit,
-          nextCursor: nextCursor ?? undefined,
-          cursor: cursor ?? undefined,
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.text,
+    withToolLogging(
+      "search-bookmarks",
+      async ({ query, limit, nextCursor, cursor }): Promise<CallToolResult> => {
+        try {
+          const result = await searchBookmarks({
+            query,
+            limit,
+            nextCursor: nextCursor ?? undefined,
+            cursor: cursor ?? undefined,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.text,
+              },
+              {
+                type: "text",
+                text: `JSON pagination data:\n\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``,
+              },
+            ],
+            structuredContent: {
+              result: result.data,
+              bookmarks: result.bookmarks,
+              items: result.items,
+              results: result.results,
+              nextCursor: result.nextCursor,
+              cursor: result.cursor,
+              hasMore: result.hasMore,
+              data: result.data,
             },
-            {
-              type: "text",
-              text: `JSON pagination data:\n\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``,
-            },
-          ],
-          structuredContent: {
-            result: result.data,
-            bookmarks: result.bookmarks,
-            items: result.items,
-            results: result.results,
-            nextCursor: result.nextCursor,
-            cursor: result.cursor,
-            hasMore: result.hasMore,
-            data: result.data,
-          },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -292,24 +306,27 @@ machine learning is:fav`),
     {
       bookmarkId: z.string().describe(`The bookmarkId to get.`),
     },
-    async ({ bookmarkId }): Promise<CallToolResult> => {
-      try {
-        const summary = await getBookmark({ bookmarkId });
-        return {
-          content: [
-            {
-              type: "text",
-              text: compactBookmark(summary),
+    withToolLogging(
+      "get-bookmark",
+      async ({ bookmarkId }): Promise<CallToolResult> => {
+        try {
+          const summary = await getBookmark({ bookmarkId });
+          return {
+            content: [
+              {
+                type: "text",
+                text: compactBookmark(summary),
+              },
+            ],
+            structuredContent: {
+              bookmark: summary,
             },
-          ],
-          structuredContent: {
-            bookmark: summary,
-          },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -326,28 +343,31 @@ machine learning is:fav`),
           "If type is text, the text to be bookmarked. If the type is link, then it's the URL to be bookmarked.",
         ),
     },
-    async ({ title, type, content }): Promise<CallToolResult> => {
-      try {
-        const summary = await createBookmark({
-          title,
-          type,
-          content,
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: compactBookmark(summary),
+    withToolLogging(
+      "create-bookmark",
+      async ({ title, type, content }): Promise<CallToolResult> => {
+        try {
+          const summary = await createBookmark({
+            title,
+            type,
+            content,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: compactBookmark(summary),
+              },
+            ],
+            structuredContent: {
+              bookmark: summary,
             },
-          ],
-          structuredContent: {
-            bookmark: summary,
-          },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -356,24 +376,27 @@ machine learning is:fav`),
     {
       bookmarkId: z.string().describe(`The bookmarkId to get content for.`),
     },
-    async ({ bookmarkId }): Promise<CallToolResult> => {
-      try {
-        const result = await getBookmarkContent({ bookmarkId });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.content,
+    withToolLogging(
+      "get-bookmark-content",
+      async ({ bookmarkId }): Promise<CallToolResult> => {
+        try {
+          const result = await getBookmarkContent({ bookmarkId });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.content,
+              },
+            ],
+            structuredContent: {
+              bookmarkId,
+              content: result,
             },
-          ],
-          structuredContent: {
-            bookmarkId,
-            content: result,
-          },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 }
