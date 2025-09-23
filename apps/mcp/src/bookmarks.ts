@@ -17,8 +17,9 @@ export const SearchBookmarksInputSchema = z
   .object({
     query: z.string(),
     limit: z.number().int().positive().max(100).optional().default(10),
-    nextCursor: z.string().optional(),
-    cursor: z.string().optional(),
+    nextCursor: z.string().nullable().optional(),
+    cursor: z.string().nullable().optional(),
+
   })
   .refine((value) => !(value.nextCursor && value.cursor), {
     message: "Provide either nextCursor or cursor, not both.",
@@ -30,8 +31,16 @@ export type SearchBookmarksInput = z.infer<typeof SearchBookmarksInputSchema>;
 export interface SearchBookmarksResult {
   bookmarks: BookmarkSummary[];
   items: BookmarkSummary[];
+  results: BookmarkSummary[];
   nextCursor: string | null;
   cursor: string | null;
+  hasMore: boolean;
+  data: {
+    items: BookmarkSummary[];
+    nextCursor: string | null;
+    cursor: string | null;
+    hasMore: boolean;
+  };
   text: string;
 }
 
@@ -88,12 +97,22 @@ export async function searchBookmarks(
 
   const bookmarks = res.data.bookmarks.map(toBookmarkSummary);
   const nextCursor = res.data.nextCursor ?? null;
+  const hasMore = nextCursor !== null;
+  const paginatedData = {
+    items: bookmarks,
+    nextCursor,
+    cursor: nextCursor,
+    hasMore,
+  } as const;
 
   return {
     bookmarks,
     items: bookmarks,
+    results: bookmarks,
     nextCursor,
     cursor: nextCursor,
+    hasMore,
+    data: paginatedData,
     text: formatBookmarkSearchResult(bookmarks, nextCursor, input.query),
   };
 }
@@ -221,26 +240,45 @@ machine learning is:fav`),
         .default(10),
       nextCursor: z
         .string()
-        .optional()
+        .nullish()
         .describe(
           `The next cursor to use for pagination. The value for this is returned from a previous call to this tool.`,
         ),
+      cursor: z
+        .string()
+        .nullish()
+        .describe(
+          `An alias for nextCursor that can be supplied by clients expecting a generic cursor field.`,
+        ),
     },
-    async ({ query, limit, nextCursor }): Promise<CallToolResult> => {
+    async ({ query, limit, nextCursor, cursor }): Promise<CallToolResult> => {
       try {
-        const result = await searchBookmarks({ query, limit, nextCursor });
+        const result = await searchBookmarks({
+          query,
+          limit,
+          nextCursor: nextCursor ?? undefined,
+          cursor: cursor ?? undefined,
+        });
         return {
           content: [
             {
               type: "text",
               text: result.text,
             },
+            {
+              type: "text",
+              text: `JSON pagination data:\n\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``,
+            },
           ],
           structuredContent: {
+            result: result.data,
             bookmarks: result.bookmarks,
             items: result.items,
+            results: result.results,
             nextCursor: result.nextCursor,
             cursor: result.cursor,
+            hasMore: result.hasMore,
+            data: result.data,
           },
         };
       } catch (error) {

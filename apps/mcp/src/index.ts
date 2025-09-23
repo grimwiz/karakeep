@@ -520,7 +520,13 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
         });
         logOpenApiRequestData(context, { rawBody: body, input });
         const result = await searchBookmarks(input);
-        logInfo("OpenAPI search-bookmarks response text", result.text);
+        logDebug(1, "OpenAPI search-bookmarks response", {
+          count: result.items.length,
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+        });
+        logDebug(2, "OpenAPI search-bookmarks response text", result.text);
+        logDebug(2, "OpenAPI search-bookmarks response data", result.data);
         setCorsHeaders(res);
         sendJson(res, 200, result, context);
         return;
