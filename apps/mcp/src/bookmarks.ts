@@ -19,6 +19,7 @@ export const SearchBookmarksInputSchema = z
     limit: z.number().int().positive().max(100).optional().default(10),
     nextCursor: z.string().nullable().optional(),
     cursor: z.string().nullable().optional(),
+
   })
   .refine((value) => !(value.nextCursor && value.cursor), {
     message: "Provide either nextCursor or cursor, not both.",
