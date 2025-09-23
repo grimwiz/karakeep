@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
+import { withToolLogging } from "./logging";
 import { karakeepClient } from "./shared";
 import {
   extractApiError,
@@ -165,7 +166,7 @@ export function registerListTools(server: McpServer) {
   server.tool(
     "get-lists",
     `Retrieves a list of lists.`,
-    async (): Promise<CallToolResult> => {
+    withToolLogging("get-lists", async (): Promise<CallToolResult> => {
       try {
         const result = await getLists();
         return {
@@ -187,7 +188,7 @@ export function registerListTools(server: McpServer) {
       } catch (error) {
         return toMcpToolError(error);
       }
-    },
+    }),
   );
 
   server.tool(
@@ -197,22 +198,25 @@ export function registerListTools(server: McpServer) {
       listId: z.string().describe(`The listId to add the bookmark to.`),
       bookmarkId: z.string().describe(`The bookmarkId to add.`),
     },
-    async ({ listId, bookmarkId }): Promise<CallToolResult> => {
-      try {
-        const result = await addBookmarkToList({ listId, bookmarkId });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.message,
-            },
-          ],
-          structuredContent: { result },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+    withToolLogging(
+      "add-bookmark-to-list",
+      async ({ listId, bookmarkId }): Promise<CallToolResult> => {
+        try {
+          const result = await addBookmarkToList({ listId, bookmarkId });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.message,
+              },
+            ],
+            structuredContent: { result },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -222,22 +226,25 @@ export function registerListTools(server: McpServer) {
       listId: z.string().describe(`The listId to remove the bookmark from.`),
       bookmarkId: z.string().describe(`The bookmarkId to remove.`),
     },
-    async ({ listId, bookmarkId }): Promise<CallToolResult> => {
-      try {
-        const result = await removeBookmarkFromList({ listId, bookmarkId });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.message,
-            },
-          ],
-          structuredContent: { result },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+    withToolLogging(
+      "remove-bookmark-from-list",
+      async ({ listId, bookmarkId }): Promise<CallToolResult> => {
+        try {
+          const result = await removeBookmarkFromList({ listId, bookmarkId });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.message,
+              },
+            ],
+            structuredContent: { result },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 
   server.tool(
@@ -251,21 +258,24 @@ export function registerListTools(server: McpServer) {
         .optional()
         .describe(`The parent list id of this list.`),
     },
-    async ({ name, icon, parentId }): Promise<CallToolResult> => {
-      try {
-        const result = await createList({ name, icon, parentId });
-        return {
-          content: [
-            {
-              type: "text",
-              text: result.message,
-            },
-          ],
-          structuredContent: { result },
-        };
-      } catch (error) {
-        return toMcpToolError(error);
-      }
-    },
+    withToolLogging(
+      "create-list",
+      async ({ name, icon, parentId }): Promise<CallToolResult> => {
+        try {
+          const result = await createList({ name, icon, parentId });
+          return {
+            content: [
+              {
+                type: "text",
+                text: result.message,
+              },
+            ],
+            structuredContent: { result },
+          };
+        } catch (error) {
+          return toMcpToolError(error);
+        }
+      },
+    ),
   );
 }
