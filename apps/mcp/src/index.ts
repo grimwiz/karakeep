@@ -319,6 +319,15 @@ function handleHttpError(
   );
 }
 
+let requestCounter = 0;
+
+function nextRequestId(): string {
+  requestCounter = (requestCounter + 1) % 1_000_000_000;
+  const counterPart = requestCounter.toString(36);
+  const timestampPart = Date.now().toString(36);
+  return `${timestampPart}-${counterPart}`;
+}
+
 async function startOpenApiServer({ port, host, path }: CliOptions) {
   const basePath = path === "/" ? "" : path;
   const spec = buildOpenApiSpec(basePath);
@@ -326,9 +335,11 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
 
   const httpServer = createServer(async (req, res) => {
     const method = req.method ?? "UNKNOWN";
+    const requestId = nextRequestId();
     let context: OpenApiRequestContext = {
       method,
       path: req.url ?? "[unknown]",
+      requestId,
     };
 
     try {
@@ -348,7 +359,7 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
 
       const hostHeader = req.headers.host ?? `${host}:${port}`;
       const requestUrl = new URL(req.url, `http://${hostHeader}`);
-      context = { method, path: requestUrl.pathname };
+      context = { method, path: requestUrl.pathname, requestId };
 
       if (
         basePath &&
@@ -370,7 +381,7 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
       const relativePath = relativePathRaw === "" ? "/" : relativePathRaw;
       const segments = relativePath.split("/").filter(Boolean);
 
-      context = { method, path: relativePath };
+      context = { method, path: relativePath, requestId };
 
       logOpenApiRequest(context);
 

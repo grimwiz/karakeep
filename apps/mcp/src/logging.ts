@@ -10,6 +10,7 @@ let cachedDebugLevel: number | undefined;
 export interface OpenApiRequestContext {
   method: string;
   path: string;
+  requestId?: string;
 }
 
 interface ToolLogMetadata {
@@ -236,8 +237,20 @@ export function logInfo(message: string, details?: unknown) {
   logDebug(0, message, details);
 }
 
+function buildOpenApiLogDetails(
+  context: OpenApiRequestContext,
+  extra?: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    method: context.method,
+    path: context.path,
+    requestId: context.requestId ?? null,
+    ...extra,
+  };
+}
+
 export function logOpenApiRequest(context: OpenApiRequestContext) {
-  logDebug(1, `OpenAPI request ${context.method} ${context.path}`);
+  logInfo("OpenAPI request received", buildOpenApiLogDetails(context));
 }
 
 export function logOpenApiRequestData(
@@ -250,8 +263,7 @@ export function logOpenApiRequestData(
   }
 
   logDebug(1, `OpenAPI request ${description}`, {
-    method: context.method,
-    path: context.path,
+    ...buildOpenApiLogDetails(context),
     data,
   });
 }
@@ -261,18 +273,15 @@ export function logOpenApiResponse(
   statusCode: number,
   payload: unknown,
 ) {
-  logDebug(
-    1,
-    `OpenAPI response ${context.method} ${context.path} -> ${statusCode}`,
-  );
+  const details = buildOpenApiLogDetails(context, { status: statusCode });
+  logInfo("OpenAPI response sent", details);
+
   if (getDebugLevel() < 1) {
     return;
   }
 
   logDebug(1, "OpenAPI response payload", {
-    method: context.method,
-    path: context.path,
-    status: statusCode,
+    ...details,
     body: payload,
   });
 }
