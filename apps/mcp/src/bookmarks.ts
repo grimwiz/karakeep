@@ -118,7 +118,37 @@ export async function searchBookmarks(
     });
   }
 
-  const rawBookmarks = res.data.bookmarks.map(toBookmarkSummary);
+  const duplicateBookmarkIds = new Set<string>();
+  const seenBookmarkIds = new Set<string>();
+  const rawBookmarks: BookmarkSummary[] = [];
+
+  for (const bookmark of res.data.bookmarks.map(toBookmarkSummary)) {
+    if (seenBookmarkIds.has(bookmark.id)) {
+      duplicateBookmarkIds.add(bookmark.id);
+      continue;
+    }
+    seenBookmarkIds.add(bookmark.id);
+    rawBookmarks.push(bookmark);
+  }
+
+  if (duplicateBookmarkIds.size > 0) {
+    logDebug(1, "Duplicate bookmarks removed from search response", {
+      query: effectiveQuery,
+      cursor,
+      duplicateIds: Array.from(duplicateBookmarkIds.values()),
+      originalCount: res.data.bookmarks.length,
+      deduplicatedCount: rawBookmarks.length,
+    });
+  }
+
+  logDebug(2, "Search bookmarks raw response summary", {
+    status: res.response?.status ?? null,
+    requestedLimit: input.limit ?? 10,
+    returnedCount: rawBookmarks.length,
+    nextCursor: res.data.nextCursor ?? null,
+    cursor,
+    idsPreview: rawBookmarks.slice(0, 20).map((bookmark) => bookmark.id),
+  });
   const bookmarks = rawBookmarks.map(escapeBookmarkSummaryMarkdown);
   const nextCursor = res.data.nextCursor ?? null;
   const hasMore = nextCursor !== null;
