@@ -8,6 +8,7 @@ import { karakeepClient, turndownService } from "./shared";
 import {
   BookmarkSummary,
   compactBookmark,
+  escapeBookmarkSummaryMarkdown,
   extractApiError,
   formatBookmarkSearchResult,
   ServiceError,
@@ -41,6 +42,17 @@ export interface SearchBookmarksResult {
     nextCursor: string | null;
     cursor: string | null;
     hasMore: boolean;
+  };
+  raw: {
+    bookmarks: BookmarkSummary[];
+    items: BookmarkSummary[];
+    results: BookmarkSummary[];
+    data: {
+      items: BookmarkSummary[];
+      nextCursor: string | null;
+      cursor: string | null;
+      hasMore: boolean;
+    };
   };
   text: string;
 }
@@ -106,11 +118,19 @@ export async function searchBookmarks(
     });
   }
 
-  const bookmarks = res.data.bookmarks.map(toBookmarkSummary);
+  const rawBookmarks = res.data.bookmarks.map(toBookmarkSummary);
+  const bookmarks = rawBookmarks.map(escapeBookmarkSummaryMarkdown);
   const nextCursor = res.data.nextCursor ?? null;
   const hasMore = nextCursor !== null;
   const paginatedData = {
     items: bookmarks,
+    nextCursor,
+    cursor,
+    hasMore,
+  } as const;
+
+  const rawPaginatedData = {
+    items: rawBookmarks,
     nextCursor,
     cursor,
     hasMore,
@@ -124,7 +144,13 @@ export async function searchBookmarks(
     cursor,
     hasMore,
     data: paginatedData,
-    text: formatBookmarkSearchResult(bookmarks, nextCursor, effectiveQuery),
+    raw: {
+      bookmarks: rawBookmarks,
+      items: rawBookmarks,
+      results: rawBookmarks,
+      data: rawPaginatedData,
+    },
+    text: formatBookmarkSearchResult(rawBookmarks, nextCursor, effectiveQuery),
   };
 }
 
@@ -273,6 +299,7 @@ export function registerBookmarkTools(server: McpServer) {
               cursor: result.cursor,
               hasMore: result.hasMore,
               data: result.data,
+              raw: result.raw,
             },
           };
         } catch (error) {
