@@ -3,6 +3,7 @@ import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
 import { logDebug, withToolLogging } from "./logging";
+import { SEARCH_QUERY_LANGUAGE_DESCRIPTION } from "./search-query-docs";
 import { karakeepClient, turndownService } from "./shared";
 import {
   BookmarkSummary,
@@ -221,28 +222,9 @@ export async function getBookmarkContent(
 export function registerBookmarkTools(server: McpServer) {
   server.tool(
     "search-bookmarks",
-    `Search for bookmarks matching a specific a query.
-`,
+    `Search for bookmarks with Karakeep's query language.`,
     {
-      query: z.string().describe(`
-    By default, this will do a full-text search, but you can also use qualifiers to filter the results.
-You can search bookmarks using specific qualifiers. is:fav finds favorited bookmarks,
-is:archived searches archived bookmarks, is:tagged finds those with tags,
-is:inlist finds those in lists, and is:link, is:text, and is:media filter by bookmark type.
-url:<value> searches for URL substrings, #<tag> searches for bookmarks with a specific tag,
-list:<name> searches for bookmarks in a specific list given its name (without the icon),
-after:<date> finds bookmarks created on or after a date (YYYY-MM-DD), and before:<date> finds bookmarks created on or before a date (YYYY-MM-DD).
-If you need to pass names with spaces, you can quote them with double quotes. If you want to negate a qualifier, prefix it with a minus sign.
-## Examples:
-
-### Find favorited bookmarks from 2023 that are tagged "important"
-is:fav after:2023-01-01 before:2023-12-31 #important
-
-### Find archived bookmarks that are either in "reading" list or tagged "work"
-is:archived and (list:reading or #work)
-
-### Combine text search with qualifiers
-machine learning is:fav`),
+      query: z.string().describe(SEARCH_QUERY_LANGUAGE_DESCRIPTION),
       limit: z
         .number()
         .optional()

@@ -1,3 +1,9 @@
+import { SEARCH_QUERY_LANGUAGE_DESCRIPTION } from "./search-query-docs";
+
+const SEARCH_QUERY_LANGUAGE_HELP_TEXT =
+  SEARCH_QUERY_LANGUAGE_DESCRIPTION.trim();
+const searchBookmarksOperationDescription = `${SEARCH_QUERY_LANGUAGE_HELP_TEXT}\n\nUse the optional limit and cursor fields to paginate through large result sets.`;
+
 const bookmarkSummarySchema = {
   type: "object",
   required: [
@@ -45,18 +51,39 @@ const bookmarkContentSchema = {
 
 const searchBookmarksInputSchema = {
   type: "object",
+  description:
+    "Parameters for searching bookmarks with Karakeep's query language.",
   required: ["query"],
   properties: {
-    query: { type: "string" },
-    limit: { type: "integer", minimum: 1, maximum: 100 },
-    nextCursor: { type: ["string", "null"] },
-    cursor: { type: ["string", "null"] },
+    query: {
+      type: "string",
+      description: SEARCH_QUERY_LANGUAGE_HELP_TEXT,
+    },
+    limit: {
+      type: "integer",
+      minimum: 1,
+      maximum: 100,
+      description:
+        "Maximum number of bookmarks to return per page (default 10).",
+    },
+    nextCursor: {
+      type: ["string", "null"],
+      description:
+        "Cursor returned from a previous response to continue pagination.",
+    },
+    cursor: {
+      type: ["string", "null"],
+      description:
+        "Alias for nextCursor for clients expecting a generic cursor field.",
+    },
   },
   additionalProperties: false,
 } as const;
 
 const searchBookmarksResultSchema = {
   type: "object",
+  description:
+    "Search response containing bookmark summaries, pagination cursors, and a human-readable summary of the results.",
   required: [
     "bookmarks",
     "items",
@@ -68,24 +95,65 @@ const searchBookmarksResultSchema = {
     "text",
   ],
   properties: {
-    bookmarks: { type: "array", items: bookmarkSummarySchema },
-    items: { type: "array", items: bookmarkSummarySchema },
-    results: { type: "array", items: bookmarkSummarySchema },
-    nextCursor: { type: ["string", "null"] },
-    cursor: { type: ["string", "null"] },
-    hasMore: { type: "boolean" },
+    bookmarks: {
+      type: "array",
+      description: "Normalized bookmark summaries returned by the search.",
+      items: bookmarkSummarySchema,
+    },
+    items: {
+      type: "array",
+      description: "Alias for bookmarks maintained for compatibility.",
+      items: bookmarkSummarySchema,
+    },
+    results: {
+      type: "array",
+      description: "Alias for bookmarks maintained for compatibility.",
+      items: bookmarkSummarySchema,
+    },
+    nextCursor: {
+      type: ["string", "null"],
+      description: "Cursor to request the next page of results, if available.",
+    },
+    cursor: {
+      type: ["string", "null"],
+      description: "Echo of the cursor that was used for this page.",
+    },
+    hasMore: {
+      type: "boolean",
+      description:
+        "Indicates whether additional pages of results are available.",
+    },
     data: {
       type: "object",
+      description:
+        "Structured pagination payload containing the next cursor and the bookmarks for the current page.",
       required: ["items", "nextCursor", "cursor", "hasMore"],
       properties: {
-        items: { type: "array", items: bookmarkSummarySchema },
-        nextCursor: { type: ["string", "null"] },
-        cursor: { type: ["string", "null"] },
-        hasMore: { type: "boolean" },
+        items: {
+          type: "array",
+          description: "Bookmarks for the current page.",
+          items: bookmarkSummarySchema,
+        },
+        nextCursor: {
+          type: ["string", "null"],
+          description: "Cursor to continue pagination.",
+        },
+        cursor: {
+          type: ["string", "null"],
+          description: "Cursor that was used to retrieve this page.",
+        },
+        hasMore: {
+          type: "boolean",
+          description: "Whether more results are available after this page.",
+        },
       },
       additionalProperties: false,
     },
-    text: { type: "string" },
+    text: {
+      type: "string",
+      description:
+        "Markdown formatted summary of the search result for conversational surfaces.",
+    },
   },
   additionalProperties: false,
 } as const;
@@ -198,7 +266,7 @@ export function buildOpenApiSpec(basePath: string) {
       title: "Karakeep MCP OpenAPI",
       version: "1.0.0",
       description:
-        "HTTP interface for Karakeep MCP tools, exposing bookmark, list, and tag operations with JSON responses.",
+        "HTTP interface for Karakeep MCP tools, exposing bookmark, list, and tag operations with JSON responses. Bookmark search supports Karakeep's query language with advanced qualifiers.",
     },
     servers: [
       {
@@ -226,17 +294,38 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "searchBookmarks",
           summary: "Search bookmarks",
+          tags: ["Bookmarks"],
+          description: searchBookmarksOperationDescription,
           requestBody: {
             required: true,
+            description:
+              "Search criteria containing the query language string and optional pagination details.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/SearchBookmarksInput" },
+                examples: {
+                  favouritedImportant: {
+                    summary: "Favorited important bookmarks from 2023",
+                    value: {
+                      query:
+                        "is:fav after:2023-01-01 before:2023-12-31 #important",
+                      limit: 10,
+                    },
+                  },
+                  machineLearning: {
+                    summary: "Combine text search with a qualifier",
+                    value: {
+                      query: "machine learning is:fav",
+                    },
+                  },
+                },
               },
             },
           },
           responses: {
             "200": {
-              description: "A paginated list of bookmarks",
+              description:
+                "Paginated search results including bookmark summaries, cursors, and a human-readable summary string.",
               content: {
                 "application/json": {
                   schema: {
@@ -246,7 +335,8 @@ export function buildOpenApiSpec(basePath: string) {
               },
             },
             default: {
-              description: "Error",
+              description:
+                "Error response returned when the search request fails.",
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -260,8 +350,13 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "createBookmark",
           summary: "Create a bookmark",
+          tags: ["Bookmarks"],
+          description:
+            "Create a new link or text bookmark and return its normalized summary.",
           requestBody: {
             required: true,
+            description:
+              "Bookmark payload identifying the type (link or text) and its content.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/CreateBookmarkInput" },
@@ -292,11 +387,15 @@ export function buildOpenApiSpec(basePath: string) {
         get: {
           operationId: "getBookmark",
           summary: "Get bookmark",
+          tags: ["Bookmarks"],
+          description:
+            "Retrieve a bookmark summary by its identifier without loading content bodies.",
           parameters: [
             {
               name: "bookmarkId",
               in: "path",
               required: true,
+              description: "Bookmark identifier.",
               schema: { type: "string" },
             },
           ],
@@ -324,11 +423,15 @@ export function buildOpenApiSpec(basePath: string) {
         get: {
           operationId: "getBookmarkContent",
           summary: "Get bookmark content",
+          tags: ["Bookmarks"],
+          description:
+            "Retrieve the markdown representation of a bookmark's stored content.",
           parameters: [
             {
               name: "bookmarkId",
               in: "path",
               required: true,
+              description: "Bookmark identifier.",
               schema: { type: "string" },
             },
           ],
@@ -358,6 +461,8 @@ export function buildOpenApiSpec(basePath: string) {
         get: {
           operationId: "listLists",
           summary: "List available lists",
+          tags: ["Lists"],
+          description: "Retrieve all lists the authenticated user can access.",
           responses: {
             "200": {
               description: "Collection of lists",
@@ -380,8 +485,13 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "createList",
           summary: "Create a new list",
+          tags: ["Lists"],
+          description:
+            "Create a new list with a name, icon, and optional parent.",
           requestBody: {
             required: true,
+            description:
+              "New list details including name, icon, and optional parentId.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/CreateListInput" },
@@ -412,17 +522,21 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "addBookmarkToList",
           summary: "Add bookmark to list",
+          tags: ["Lists"],
+          description: "Add a bookmark to the specified list.",
           parameters: [
             {
               name: "listId",
               in: "path",
               required: true,
+              description: "Target list identifier.",
               schema: { type: "string" },
             },
             {
               name: "bookmarkId",
               in: "path",
               required: true,
+              description: "Bookmark identifier to add to the list.",
               schema: { type: "string" },
             },
           ],
@@ -448,17 +562,21 @@ export function buildOpenApiSpec(basePath: string) {
         delete: {
           operationId: "removeBookmarkFromList",
           summary: "Remove bookmark from list",
+          tags: ["Lists"],
+          description: "Remove a bookmark from the specified list.",
           parameters: [
             {
               name: "listId",
               in: "path",
               required: true,
+              description: "Target list identifier.",
               schema: { type: "string" },
             },
             {
               name: "bookmarkId",
               in: "path",
               required: true,
+              description: "Bookmark identifier to remove from the list.",
               schema: { type: "string" },
             },
           ],
@@ -486,8 +604,12 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "attachTags",
           summary: "Attach tags to bookmark",
+          tags: ["Tags"],
+          description:
+            "Attach one or more tags to a bookmark and return the resulting tag list.",
           requestBody: {
             required: true,
+            description: "Bookmark identifier and tag list to attach.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/TagMutationInput" },
@@ -518,8 +640,12 @@ export function buildOpenApiSpec(basePath: string) {
         post: {
           operationId: "detachTags",
           summary: "Detach tags from bookmark",
+          tags: ["Tags"],
+          description:
+            "Remove one or more tags from a bookmark and return the updated tag list.",
           requestBody: {
             required: true,
+            description: "Bookmark identifier and tag list to detach.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/TagMutationInput" },
@@ -562,17 +688,63 @@ export function buildOpenApiConfig(basePath: string) {
       },
     ],
     operations: [
-      { operationId: "searchBookmarks", verb: "search" },
-      { operationId: "searchBookmarks", verb: "cursor" },
-      { operationId: "getBookmark", verb: "get" },
-      { operationId: "createBookmark", verb: "create" },
-      { operationId: "getBookmarkContent", verb: "get" },
-      { operationId: "listLists", verb: "list" },
-      { operationId: "createList", verb: "create" },
-      { operationId: "addBookmarkToList", verb: "update" },
-      { operationId: "removeBookmarkFromList", verb: "delete" },
-      { operationId: "attachTags", verb: "update" },
-      { operationId: "detachTags", verb: "update" },
+      {
+        operationId: "searchBookmarks",
+        verb: "search",
+        description:
+          "Search bookmarks using Karakeep's query language with advanced qualifiers.",
+      },
+      {
+        operationId: "searchBookmarks",
+        verb: "cursor",
+        description:
+          "Retrieve the next page of results from a previous searchBookmarks response.",
+      },
+      {
+        operationId: "getBookmark",
+        verb: "get",
+        description: "Fetch a bookmark summary by identifier.",
+      },
+      {
+        operationId: "createBookmark",
+        verb: "create",
+        description: "Create a new link or text bookmark.",
+      },
+      {
+        operationId: "getBookmarkContent",
+        verb: "get",
+        description: "Retrieve markdown content for a bookmark.",
+      },
+      {
+        operationId: "listLists",
+        verb: "list",
+        description: "List the user's available lists.",
+      },
+      {
+        operationId: "createList",
+        verb: "create",
+        description: "Create a new list for organizing bookmarks.",
+      },
+      {
+        operationId: "addBookmarkToList",
+        verb: "update",
+        description: "Add an existing bookmark to a list.",
+      },
+      {
+        operationId: "removeBookmarkFromList",
+        verb: "delete",
+        description: "Remove a bookmark from a list.",
+      },
+      {
+        operationId: "attachTags",
+        verb: "update",
+        description: "Attach one or more tags to a bookmark.",
+      },
+      {
+        operationId: "detachTags",
+        verb: "update",
+        description: "Detach one or more tags from a bookmark.",
+      },
     ],
   } as const;
 }

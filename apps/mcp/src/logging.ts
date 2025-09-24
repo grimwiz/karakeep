@@ -1,8 +1,9 @@
 const DEBUG_ENV_VAR = "KARAKEEP_MCP_DEBUG";
 const MAX_DEBUG_LEVEL = 2;
 const DEBUG_PREFIX = "[Karakeep MCP]";
-const MAX_STRING_LENGTH_LEVEL1 = 512;
-const MAX_COLLECTION_LENGTH_LEVEL1 = 20;
+const MAX_STRING_LENGTH_LEVEL1 = 256;
+const MAX_COLLECTION_LENGTH_LEVEL1 = 5;
+const MAX_PREVIEW_DEPTH_LEVEL1 = 2;
 
 let cachedDebugLevel: number | undefined;
 
@@ -74,7 +75,7 @@ function truncateCollection<T>(
   const formatted = slice.map(formatter);
   if (values.length > MAX_COLLECTION_LENGTH_LEVEL1) {
     formatted.push(
-      `… ${values.length - MAX_COLLECTION_LENGTH_LEVEL1} more item(s) truncated`,
+      `… ${values.length - MAX_COLLECTION_LENGTH_LEVEL1} more item(s) truncated (total ${values.length})`,
     );
   }
   return formatted;
@@ -100,7 +101,11 @@ function truncateObject(
   return result;
 }
 
-function truncateValue(value: unknown, seen: WeakSet<object>): unknown {
+function truncateValue(
+  value: unknown,
+  seen: WeakSet<object>,
+  depth: number,
+): unknown {
   if (
     value === null ||
     typeof value === "number" ||
@@ -146,30 +151,51 @@ function truncateValue(value: unknown, seen: WeakSet<object>): unknown {
   if (seen.has(value)) {
     return "[Circular]";
   }
-  seen.add(value);
 
   if (Array.isArray(value)) {
-    return truncateCollection(value, (item) => truncateValue(item, seen));
+    if (depth <= 0) {
+      return `[Array(${value.length})]`;
+    }
+    seen.add(value);
+    return truncateCollection(value, (item) =>
+      truncateValue(item, seen, depth - 1),
+    );
   }
 
   if (value instanceof Map) {
+    if (depth <= 0) {
+      return `[Map(${value.size})]`;
+    }
+    seen.add(value);
     return truncateCollection(
       Array.from(value.entries()),
       ([key, entryValue]) => ({
-        key: truncateValue(key, seen),
-        value: truncateValue(entryValue, seen),
+        key: truncateValue(key, seen, depth - 1),
+        value: truncateValue(entryValue, seen, depth - 1),
       }),
     );
   }
 
   if (value instanceof Set) {
+    if (depth <= 0) {
+      return `[Set(${value.size})]`;
+    }
+    seen.add(value);
     return truncateCollection(Array.from(value.values()), (item) =>
-      truncateValue(item, seen),
+      truncateValue(item, seen, depth - 1),
     );
   }
 
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  if (depth <= 0) {
+    const keys = Object.keys(value as Record<string, unknown>);
+    return `[Object(${keys.length} keys)]`;
+  }
+  seen.add(value);
   return truncateObject(value as Record<string, unknown>, (item) =>
-    truncateValue(item, seen),
+    truncateValue(item, seen, depth - 1),
   );
 }
 
@@ -178,7 +204,7 @@ function prepareDetails(details: unknown, debugLevel: number): unknown {
     return details;
   }
 
-  return truncateValue(details, new WeakSet());
+  return truncateValue(details, new WeakSet(), MAX_PREVIEW_DEPTH_LEVEL1);
 }
 
 export function logDebug(level: number, message: string, details?: unknown) {
