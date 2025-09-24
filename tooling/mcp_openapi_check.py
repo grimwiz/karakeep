@@ -34,8 +34,10 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-key",
-        required=True,
-        help="API key used for authorization. Matches KARAKEEP_API_KEY.",
+        help=(
+            "API key used for authorization. Matches KARAKEEP_API_KEY. "
+            "If omitted, requests are sent without authentication."
+        ),
     )
     parser.add_argument(
         "--query",
@@ -85,7 +87,7 @@ def ensure_openapi_paths(spec: dict[str, Any]) -> None:
 def perform_search(
     session: requests.Session,
     base_url: str,
-    api_key: str,
+    api_key: str | None,
     query: str,
     limit: int,
     cursor: str | None,
@@ -99,9 +101,10 @@ def perform_search(
     if cursor:
         params["cursor"] = cursor
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
     }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     response = session.get(
         f"{base_url}/bookmarks/search",
         params=params,
