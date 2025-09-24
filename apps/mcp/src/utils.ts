@@ -259,21 +259,75 @@ export function escapeBookmarkSummaryMarkdown(
   } satisfies BookmarkSummary;
 }
 
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const truncated = value.slice(0, Math.max(0, maxLength - 1)).trimEnd();
+  return `${truncated}…`;
+}
+
+function formatBookmarkLine(bookmark: BookmarkSummary, index: number): string {
+  const parts: string[] = [];
+  const createdAtDate = new Date(bookmark.createdAt);
+  const createdAt = Number.isNaN(createdAtDate.getTime())
+    ? null
+    : createdAtDate.toISOString().split("T")[0];
+
+  const title = bookmark.title?.trim() || "Untitled bookmark";
+  const headerLine = `${index + 1}. ${title}${createdAt ? ` (${createdAt})` : ""}`;
+  parts.push(headerLine);
+
+  const summary = bookmark.summary?.trim();
+  if (summary) {
+    parts.push(`   Summary: ${truncateText(summary, 400)}`);
+  }
+
+  const note = bookmark.note?.trim();
+  if (note) {
+    parts.push(`   Note: ${truncateText(note, 200)}`);
+  }
+
+  const url = bookmark.url ?? bookmark.sourceUrl;
+  if (url) {
+    parts.push(`   Link: ${url}`);
+  }
+
+  if (bookmark.tags.length > 0) {
+    parts.push(`   Tags: ${bookmark.tags.join(", ")}`);
+  }
+
+  return parts.join("\n");
+}
+
 export function formatBookmarkSearchResult(
   bookmarks: BookmarkSummary[],
   nextCursor: string | null,
   query?: string,
 ): string {
-  const header =
-    bookmarks.length === 0
-      ? query
-        ? `No bookmarks matched the query "${query}".`
-        : "No bookmarks matched the current query."
-      : bookmarks.map((bookmark) => compactBookmark(bookmark)).join("\n\n");
+  if (bookmarks.length === 0) {
+    const message = query
+      ? `No bookmarks matched the query "${query}".`
+      : "No bookmarks matched the current query.";
+    const cursorLine = `Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}`;
+    return `${message}\n\n${cursorLine}`;
+  }
+
+  const introParts = [
+    `Found ${bookmarks.length} bookmark${bookmarks.length === 1 ? "" : "s"}.`,
+  ];
+  if (query && query.trim().length > 0) {
+    introParts.push(`Query: "${query}"`);
+  }
+
+  const formattedBookmarks = bookmarks
+    .map((bookmark, index) => formatBookmarkLine(bookmark, index))
+    .join("\n\n");
 
   const cursorLine = `Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}`;
 
-  return `${header}\n\n${cursorLine}`;
+  return `${introParts.join(" ")}\n\n${formattedBookmarks}\n\n${cursorLine}`;
 }
 
 export interface ListSummary {
