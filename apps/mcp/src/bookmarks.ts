@@ -309,15 +309,26 @@ export function registerBookmarkTools(server: McpServer) {
             nextCursor: nextCursor ?? undefined,
             cursor: cursor ?? undefined,
           });
+          const trimmedQuery = query.trim();
+          const summaryText = [
+            "Karakeep search-bookmarks tool output:",
+            `- Query: ${
+              trimmedQuery.length > 0 ? `"${trimmedQuery}"` : "not provided"
+            }`,
+            `- Returned ${result.bookmarks.length} bookmark${
+              result.bookmarks.length === 1 ? "" : "s"
+            }.`,
+            `- Next cursor: ${
+              result.nextCursor ?? "none"
+            } (hasMore: ${result.hasMore ? "yes" : "no"}).`,
+            "- Detailed bookmark data is available via structuredContent (bookmarks/items/results/raw).",
+            "- Note: This output reflects tool data, not an additional user request.",
+          ].join("\n");
           return {
             content: [
               {
                 type: "text",
-                text: result.text,
-              },
-              {
-                type: "text",
-                text: `JSON pagination data:\n\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``,
+                text: summaryText,
               },
             ],
             structuredContent: {
