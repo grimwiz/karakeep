@@ -251,6 +251,53 @@ async function parseJsonBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
+function normalizeNullableParam(value: string | null): string | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  const lower = trimmed.toLowerCase();
+  if (
+    trimmed === "" ||
+    lower === "null" ||
+    lower === "undefined" ||
+    lower === "none"
+  ) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+function parseSearchQueryParams(params: URLSearchParams) {
+  const query =
+    params.get("query") ?? params.get("q") ?? params.get("text") ?? "";
+  const limitRaw = normalizeNullableParam(params.get("limit"));
+  const cursorRaw = normalizeNullableParam(params.get("cursor"));
+  const nextCursorRaw = normalizeNullableParam(params.get("nextCursor"));
+
+  let limit: number | undefined;
+  if (limitRaw !== undefined) {
+    const parsed = Number.parseInt(limitRaw, 10);
+    if (!Number.isFinite(parsed)) {
+      throw new ServiceError("Invalid limit query parameter", {
+        status: 400,
+        code: "invalid_limit",
+        details: { raw: limitRaw },
+      });
+    }
+    limit = parsed;
+  }
+
+  const input = SearchBookmarksInputSchema.parse({
+    query,
+    limit,
+    cursor: nextCursorRaw === undefined ? cursorRaw : undefined,
+    nextCursor: nextCursorRaw,
+  });
+
+  return input;
+}
+
 function handleHttpError(
   res: ServerResponse,
   error: unknown,
@@ -427,6 +474,30 @@ async function startOpenApiServer({ port, host, path }: CliOptions) {
           },
           context,
         );
+        return;
+      }
+
+      if (req.method === "GET" && relativePath === "/bookmarks/search") {
+        const rawQueryParams = Object.fromEntries(
+          requestUrl.searchParams.entries(),
+        );
+        const input = parseSearchQueryParams(requestUrl.searchParams);
+        logInfo("OpenAPI search-bookmarks request", {
+          query: input.query,
+          limit: input.limit,
+          nextCursor: input.nextCursor ?? input.cursor ?? null,
+        });
+        logOpenApiRequestData(context, { query: rawQueryParams, input });
+        const result = await searchBookmarks(input);
+        logDebug(1, "OpenAPI search-bookmarks response", {
+          count: result.items.length,
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+        });
+        logDebug(1, "OpenAPI search-bookmarks response text", result.text);
+        logDebug(1, "OpenAPI search-bookmarks response data", result.data);
+        setCorsHeaders(res);
+        sendJson(res, 200, result, context);
         return;
       }
 

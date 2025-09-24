@@ -346,11 +346,86 @@ export function buildOpenApiSpec(basePath: string) {
     },
     paths: {
       "/bookmarks/search": {
-        post: {
+        get: {
           operationId: "searchBookmarks",
           summary: "Search bookmarks",
           tags: ["Bookmarks"],
           description: searchBookmarksOperationDescription,
+          parameters: [
+            {
+              name: "query",
+              in: "query",
+              required: false,
+              description:
+                "Search string written with Karakeep's query language. Defaults to an empty string when omitted.",
+              schema: { type: "string" },
+            },
+            {
+              name: "q",
+              in: "query",
+              required: false,
+              description:
+                "Alias for the query parameter used by legacy integrations.",
+              schema: { type: "string" },
+            },
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              description:
+                "Maximum number of bookmarks to return per page (default 10).",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+              },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              required: false,
+              description:
+                "Cursor returned from a previous response to continue pagination.",
+              schema: { type: "string" },
+            },
+            {
+              name: "nextCursor",
+              in: "query",
+              required: false,
+              description:
+                "Alias for cursor for clients expecting a dedicated nextCursor field.",
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            "200": {
+              description:
+                "Paginated search results including bookmark summaries, cursors, and a human-readable summary string.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/SearchBookmarksResult",
+                  },
+                },
+              },
+            },
+            default: {
+              description:
+                "Error response returned when the search request fails.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          operationId: "searchBookmarksPost",
+          summary: "Search bookmarks",
+          tags: ["Bookmarks"],
+          description: `${searchBookmarksOperationDescription}\n\nThis POST variant accepts a JSON request body and is kept for backwards compatibility.`,
+          deprecated: true,
           requestBody: {
             required: true,
             description:
