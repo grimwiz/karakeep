@@ -91,6 +91,9 @@ const searchBookmarksResultSchema = {
     "nextCursor",
     "cursor",
     "hasMore",
+    "submittedQuery",
+    "normalizedQuery",
+    "effectiveQuery",
     "data",
     "raw",
     "text",
@@ -124,6 +127,20 @@ const searchBookmarksResultSchema = {
       type: "boolean",
       description:
         "Indicates whether additional pages of results are available.",
+    },
+    submittedQuery: {
+      type: "string",
+      description: "Original query string supplied to the tool call.",
+    },
+    normalizedQuery: {
+      type: "string",
+      description:
+        "Lowercased and trimmed version of the submitted query used for internal normalization.",
+    },
+    effectiveQuery: {
+      type: "string",
+      description:
+        "Query string actually sent to the Karakeep API after normalization (e.g., wildcard substitutions).",
     },
     data: {
       type: "object",
