@@ -19,7 +19,7 @@ import {
 export const SearchBookmarksInputSchema = z
   .object({
     query: z.string(),
-    limit: z.number().int().positive().max(100).optional().default(10),
+    limit: z.number().int().positive().max(100).optional().default(100),
     nextCursor: z.string().nullable().optional(),
     cursor: z.string().nullable().optional(),
   })
@@ -147,7 +147,7 @@ export async function searchBookmarks(
 
   logDebug(2, "Search bookmarks raw response summary", {
     status: res.response?.status ?? null,
-    requestedLimit: input.limit ?? 10,
+    requestedLimit: input.limit ?? 100,
     returnedCount: rawBookmarks.length,
     nextCursor: res.data.nextCursor ?? null,
     cursor,
@@ -292,7 +292,7 @@ export function registerBookmarkTools(server: McpServer) {
         .number()
         .optional()
         .describe(`The number of results to return in a single query.`)
-        .default(10),
+        .default(100),
       nextCursor: z
         .string()
         .nullish()

@@ -307,27 +307,33 @@ export function formatBookmarkSearchResult(
   query?: string,
 ): string {
   if (bookmarks.length === 0) {
+    const header =
+      "Karakeep search-bookmarks tool response (not a user message):";
     const message = query
-      ? `No bookmarks matched the query "${query}".`
-      : "No bookmarks matched the current query.";
-    const cursorLine = `Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}`;
-    return `${message}\n\n${cursorLine}`;
+      ? `- No bookmarks matched the query "${query}".`
+      : "- No bookmarks matched the current query.";
+    const cursorLine = `- Next cursor: ${
+      nextCursor ? `'${nextCursor}'` : "no more pages"
+    }.`;
+    return [header, message, cursorLine].join("\n");
   }
 
-  const introParts = [
-    `Found ${bookmarks.length} bookmark${bookmarks.length === 1 ? "" : "s"}.`,
+  const summaryLines = [
+    "Karakeep search-bookmarks tool response (not a user message):",
+    `- Found ${bookmarks.length} bookmark${bookmarks.length === 1 ? "" : "s"}.`,
   ];
   if (query && query.trim().length > 0) {
-    introParts.push(`Query: "${query}"`);
+    summaryLines.push(`- Query: "${query}".`);
   }
+  summaryLines.push(
+    `- Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}.`,
+  );
 
   const formattedBookmarks = bookmarks
     .map((bookmark, index) => formatBookmarkLine(bookmark, index))
     .join("\n\n");
 
-  const cursorLine = `Next cursor: ${nextCursor ? `'${nextCursor}'` : "no more pages"}`;
-
-  return `${introParts.join(" ")}\n\n${formattedBookmarks}\n\n${cursorLine}`;
+  return `${summaryLines.join("\n")}\n\n${formattedBookmarks}`;
 }
 
 export interface ListSummary {

@@ -456,7 +456,7 @@ export function buildOpenApiSpec(basePath: string) {
                     value: {
                       query:
                         "is:fav after:2023-01-01 before:2023-12-31 #important",
-                      limit: 10,
+                      limit: 100,
                     },
                   },
                   machineLearning: {
