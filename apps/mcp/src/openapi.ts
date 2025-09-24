@@ -92,12 +92,14 @@ const searchBookmarksResultSchema = {
     "cursor",
     "hasMore",
     "data",
+    "raw",
     "text",
   ],
   properties: {
     bookmarks: {
       type: "array",
-      description: "Normalized bookmark summaries returned by the search.",
+      description:
+        "Bookmark summaries with Markdown-significant characters escaped for display.",
       items: bookmarkSummarySchema,
     },
     items: {
@@ -145,6 +147,59 @@ const searchBookmarksResultSchema = {
         hasMore: {
           type: "boolean",
           description: "Whether more results are available after this page.",
+        },
+      },
+      additionalProperties: false,
+    },
+    raw: {
+      type: "object",
+      description:
+        "Original bookmark data prior to Markdown escaping for consumers that require the unmodified values.",
+      required: ["bookmarks", "items", "results", "data"],
+      properties: {
+        bookmarks: {
+          type: "array",
+          description: "Raw bookmark summaries.",
+          items: bookmarkSummarySchema,
+        },
+        items: {
+          type: "array",
+          description:
+            "Alias for raw bookmark summaries maintained for compatibility.",
+          items: bookmarkSummarySchema,
+        },
+        results: {
+          type: "array",
+          description:
+            "Alias for raw bookmark summaries maintained for compatibility.",
+          items: bookmarkSummarySchema,
+        },
+        data: {
+          type: "object",
+          description:
+            "Structured pagination payload containing the raw bookmark summaries for the current page.",
+          required: ["items", "nextCursor", "cursor", "hasMore"],
+          properties: {
+            items: {
+              type: "array",
+              description: "Raw bookmarks for the current page.",
+              items: bookmarkSummarySchema,
+            },
+            nextCursor: {
+              type: ["string", "null"],
+              description: "Cursor to continue pagination.",
+            },
+            cursor: {
+              type: ["string", "null"],
+              description: "Cursor that was used to retrieve this page.",
+            },
+            hasMore: {
+              type: "boolean",
+              description:
+                "Whether more results are available after this page.",
+            },
+          },
+          additionalProperties: false,
         },
       },
       additionalProperties: false,

@@ -197,6 +197,68 @@ export function compactBookmark(summary: BookmarkSummary): string {
   return `Bookmark ID: ${summary.id}\n  Created at: ${summary.createdAt}\n  Title: ${summary.title ?? ""}\n  Summary: ${summary.summary ?? ""}\n  Note: ${summary.note ?? ""}\n  ${details}\n  Tags: ${summary.tags.join(", ")}`;
 }
 
+const MARKDOWN_ESCAPE_CHARACTERS = new Set<string>([
+  "\\",
+  "`",
+  "*",
+  "_",
+  "{",
+  "}",
+  "[",
+  "]",
+  "(",
+  ")",
+  "#",
+  "+",
+  ".",
+  "!",
+  "|",
+  ">",
+  "~",
+  "-",
+]);
+
+function escapeMarkdownText(value: string): string {
+  let escaped = "";
+  for (const char of value) {
+    escaped += MARKDOWN_ESCAPE_CHARACTERS.has(char) ? `\\${char}` : char;
+  }
+  return escaped;
+}
+
+function escapeOptionalMarkdownText<T extends string | null | undefined>(
+  value: T,
+): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  return escapeMarkdownText(value) as T;
+}
+
+export function escapeBookmarkSummaryMarkdown(
+  summary: BookmarkSummary,
+): BookmarkSummary {
+  return {
+    ...summary,
+    title: escapeOptionalMarkdownText(summary.title),
+    summary: escapeOptionalMarkdownText(summary.summary),
+    note: escapeOptionalMarkdownText(summary.note),
+    taggingStatus: escapeOptionalMarkdownText(summary.taggingStatus),
+    summarizationStatus: escapeOptionalMarkdownText(
+      summary.summarizationStatus,
+    ),
+    url: escapeOptionalMarkdownText(summary.url),
+    description: escapeOptionalMarkdownText(summary.description),
+    author: escapeOptionalMarkdownText(summary.author),
+    publisher: escapeOptionalMarkdownText(summary.publisher),
+    sourceUrl: escapeOptionalMarkdownText(summary.sourceUrl),
+    assetId: escapeOptionalMarkdownText(summary.assetId),
+    assetType: escapeOptionalMarkdownText(summary.assetType),
+    tags: summary.tags.map((tag) => escapeMarkdownText(tag)),
+  } satisfies BookmarkSummary;
+}
+
 export function formatBookmarkSearchResult(
   bookmarks: BookmarkSummary[],
   nextCursor: string | null,
