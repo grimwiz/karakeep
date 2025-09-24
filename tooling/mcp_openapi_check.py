@@ -65,7 +65,9 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
 
 
 def build_base_url(addr: str) -> str:
-    return addr.rstrip("/") + "/api/v1"
+    """Normalize the API base address without assuming a versioned suffix."""
+
+    return addr.rstrip("/")
 
 
 def fetch_openapi_spec(session: requests.Session, base_url: str, timeout: int) -> dict[str, Any]:
