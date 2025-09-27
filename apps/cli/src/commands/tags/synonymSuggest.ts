@@ -20,6 +20,10 @@ const DEFAULT_DATA_DIR = path.join(os.homedir(), ".karakeep", "synonym-review");
 const CACHE_FILENAME = "tag_synonym_cache.json";
 const REVIEW_FILENAME = "tag_review_state.json";
 
+function normalizeReviewKey(name: string): string {
+  return name.toLowerCase();
+}
+
 interface TagSummary {
   id: string;
   name: string;
@@ -58,6 +62,7 @@ interface CacheEntry {
 interface ReviewEntry {
   script: string | null;
   reviewed_at: string;
+  targetName?: string;
 }
 
 class CacheManager {
@@ -106,7 +111,26 @@ class ReviewStore {
       if (!parsed || typeof parsed !== "object") {
         return {};
       }
-      return parsed;
+      const normalized: Record<string, ReviewEntry> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!value || typeof value !== "object") {
+          continue;
+        }
+        const entry = value as ReviewEntry & Record<string, unknown>;
+        if (typeof entry.reviewed_at !== "string") {
+          continue;
+        }
+        const normalizedKey = normalizeReviewKey(key);
+        normalized[normalizedKey] = {
+          script: typeof entry.script === "string" ? entry.script : null,
+          reviewed_at: entry.reviewed_at,
+          targetName:
+            typeof entry.targetName === "string" && entry.targetName.trim()
+              ? entry.targetName
+              : key,
+        };
+      }
+      return normalized;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return {};
@@ -598,13 +622,12 @@ function ensureConfirmation(
     .finally(() => rl.close());
 }
 
-function normalizeReviewKey(name: string): string {
-  return name.toLowerCase();
-}
-
 export function registerSynonymSuggestCommand(parent: Command): void {
   parent
     .command("synonym-suggest")
+    .description(
+      "Review tags for synonyms, cache analyses, and emit reversible merge scripts.",
+    )
     .argument("[tagName]", "Tag to review")
     .option("--model <model>", "Ollama model to use", DEFAULT_MODEL)
     .option(
@@ -677,9 +700,7 @@ export function registerSynonymSuggestCommand(parent: Command): void {
       }
 
       const reviewData = await reviewStore.load();
-      const reviewedNames = new Set(
-        Object.keys(reviewData).map((name) => normalizeReviewKey(name)),
-      );
+      const reviewedNames = new Set(Object.keys(reviewData));
 
       let target: TagSummary;
       try {
@@ -741,9 +762,11 @@ export function registerSynonymSuggestCommand(parent: Command): void {
         console.log(
           "The model did not find any synonyms for this tag. Marking as reviewed.",
         );
-        reviewData[target.name] = {
+        const reviewKey = normalizeReviewKey(target.name);
+        reviewData[reviewKey] = {
           script: null,
           reviewed_at: new Date().toISOString(),
+          targetName: target.name,
         };
         await reviewStore.save(reviewData);
         return;
@@ -842,9 +865,11 @@ export function registerSynonymSuggestCommand(parent: Command): void {
       };
       await cacheManager.save(cacheData);
 
-      reviewData[target.name] = {
+      const reviewKey = normalizeReviewKey(target.name);
+      reviewData[reviewKey] = {
         script: scriptPath,
         reviewed_at: new Date().toISOString(),
+        targetName: target.name,
       };
       await reviewStore.save(reviewData);
     });
