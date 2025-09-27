@@ -52,3 +52,55 @@ From Docker:
   }
 }
 ```
+
+### Local testing with Docker from source
+
+The repository includes a multi-stage Dockerfile under
+`apps/mcp/docker/Dockerfile` that builds the MCP server directly from the
+workspace. The Dockerfile provides placeholder values for `KARAKEEP_API_ADDR`
+and `KARAKEEP_API_KEY`, and you can override them by passing `-e` flags to
+`docker run`. Follow the [Docker README](./docker/README.md) for commands that
+build the image and run it in OpenAPI or stdio mode.
+
+
+## Running as an HTTP server
+
+In addition to the standard stdio-based transport, the CLI can expose the MCP
+tools through a lightweight OpenAPI surface that returns JSON responses. This
+mode is designed for integrations such as Open WebUI that expect OpenAPI
+metadata (including a `cursor` verb) instead of the MCP streamable transport.
+
+Start the HTTP server by passing the `--openapi` flag (or by setting the
+environment variable `KARAKEEP_MCP_TRANSPORT=openapi`). The legacy `--http`
+flag still works as an alias.
+
+```
+karakeep-mcp --openapi --port 3333 --host 0.0.0.0 --path /mcp
+```
+
+By default the server listens on `0.0.0.0:3000` and exposes its endpoints under
+`/mcp`. The following options/environment variables are supported:
+
+- `--port` / `KARAKEEP_MCP_PORT` (or `PORT`): change the listening port.
+- `--host` / `KARAKEEP_MCP_HOST`: change the host/interface.
+- `--path` / `KARAKEEP_MCP_PATH`: change the base path for HTTP requests.
+- `--transport` / `KARAKEEP_MCP_TRANSPORT`: choose between `stdio` and
+  `openapi`.
+- `KARAKEEP_MCP_DEBUG`: optional debug logging level for OpenAPI requests.
+
+Set `KARAKEEP_MCP_DEBUG=1` to print a concise log entry whenever Open WebUI
+issues a request or receives a response. Set the level to `2` for detailed logs
+that include the request payload (as provided by Open WebUI) and the structured
+JSON returned by the MCP server. The variable can be supplied via `-e` when
+running the Docker container.
+
+When running in OpenAPI mode, the server serves:
+
+- `${path}/openapi.json` – the OpenAPI schema describing all bookmark, list,
+  and tag operations, with JSON request/response payloads.
+- `${path}/openapi.conf` – a helper configuration file for Open WebUI that
+  maps operations (including the `cursor` verb) to their OpenAPI
+  `operationId`s.
+
+All HTTP responses include structured JSON, so no external shim is required to
+consume the tool results.
