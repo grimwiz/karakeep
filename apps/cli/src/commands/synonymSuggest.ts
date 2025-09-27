@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import os from "node:os";
 import * as path from "node:path";
@@ -19,6 +18,36 @@ const GENERATED_SCRIPT_PREFIX = "summarise_tag_";
 const DEFAULT_DATA_DIR = path.join(os.homedir(), ".karakeep", "synonym-review");
 const CACHE_FILENAME = "tag_synonym_cache.json";
 const REVIEW_FILENAME = "tag_review_state.json";
+
+function normalizeOllamaUrl(input: string | undefined): string | undefined {
+  if (typeof input !== "string") {
+    return undefined;
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse Ollama URL '${trimmed}': ${(error as Error).message}`,
+    );
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Ollama URL must use http or https.");
+  }
+
+  parsed.hash = "";
+  parsed.search = "";
+
+  const normalized = parsed.toString().replace(/\/+$/, "");
+  return normalized;
+}
 
 function normalizeReviewKey(name: string): string {
   return name.toLowerCase();
@@ -234,34 +263,75 @@ async function chooseTagToReview(
 async function runOllama(
   model: string,
   prompt: string,
+  baseUrl: string,
 ): Promise<Record<string, unknown>> {
-  const process = spawn("ollama", ["run", model], {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-
-  process.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
-  process.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));
-
-  process.stdin?.write(prompt);
-  process.stdin?.end();
-
-  const exitCode: number = await new Promise((resolve, reject) => {
-    process.on("error", (error) => reject(error));
-    process.on("close", (code) => resolve(code ?? 0));
-  });
-
-  if (exitCode !== 0) {
-    const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-    throw new Error(`ollama exited with code ${exitCode}: ${stderr}`);
+  let requestUrl: URL;
+  try {
+    requestUrl = new URL(`${baseUrl}/api/generate`);
+  } catch (error) {
+    throw new Error(
+      `Failed to construct Ollama request URL: ${(error as Error).message}`,
+    );
   }
 
-  const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-  const matches = stdout.match(/\{[\s\S]*\}/g);
+  let httpResponse: Awaited<ReturnType<typeof fetch>>;
+  try {
+    httpResponse = await fetch(requestUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model, prompt, stream: false }),
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to reach Ollama at ${requestUrl.toString()}: ${(error as Error).message}`,
+    );
+  }
+
+  if (!httpResponse.ok) {
+    let responseText = "";
+    try {
+      responseText = await httpResponse.text();
+    } catch {
+      // Ignore body parsing errors for non-OK responses.
+    }
+    const suffix = responseText ? `: ${responseText}` : "";
+    throw new Error(
+      `Ollama responded with ${httpResponse.status} ${httpResponse.statusText}${suffix}`,
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await httpResponse.json();
+  } catch (error) {
+    throw new Error(
+      `Failed to parse Ollama response as JSON: ${(error as Error).message}`,
+    );
+  }
+
+  if (payload && typeof payload === "object" && "error" in payload) {
+    const errorMessage = (payload as { error?: unknown }).error;
+    if (typeof errorMessage === "string" && errorMessage.trim()) {
+      throw new Error(`Ollama returned an error: ${errorMessage}`);
+    }
+  }
+
+  const raw =
+    payload &&
+    typeof payload === "object" &&
+    typeof (payload as { response?: unknown }).response === "string"
+      ? ((payload as { response: string }).response as string)
+      : "";
+
+  if (!raw) {
+    throw new Error(
+      "Ollama response did not include a textual payload to parse.",
+    );
+  }
+
+  const matches = raw.match(/\{[\s\S]*\}/g);
   if (!matches || matches.length === 0) {
-    throw new Error(`Could not find JSON in Ollama response:\n${stdout}`);
+    throw new Error(`Could not find JSON in Ollama response:\n${raw}`);
   }
 
   for (let index = matches.length - 1; index >= 0; index -= 1) {
@@ -275,7 +345,7 @@ async function runOllama(
     }
   }
 
-  throw new Error(`Failed to parse Ollama response as JSON:\n${stdout}`);
+  throw new Error(`Failed to parse Ollama response as JSON:\n${raw}`);
 }
 
 async function collectSynonyms(
@@ -283,6 +353,7 @@ async function collectSynonyms(
   otherTags: TagSummary[],
   model: string,
   chunkSize: number,
+  ollamaUrl: string,
 ): Promise<{ synonyms: string[]; notes: string[] }> {
   if (chunkSize < 1) {
     throw new Error("--chunk-size must be at least 1");
@@ -302,7 +373,7 @@ async function collectSynonyms(
   for (let index = 0; index < candidates.length; index += chunkSize) {
     const slice = candidates.slice(index, index + chunkSize);
     const prompt = buildOllamaPrompt(target, slice);
-    const response = await runOllama(model, prompt);
+    const response = await runOllama(model, prompt, ollamaUrl);
     const rawSynonyms = response.synonyms;
     if (Array.isArray(rawSynonyms)) {
       for (const entry of rawSynonyms) {
@@ -631,6 +702,10 @@ export function registerSynonymSuggestCommand(parent: Command): void {
     .argument("[tagName]", "Tag to review")
     .option("--model <model>", "Ollama model to use", DEFAULT_MODEL)
     .option(
+      "--ollama-url <url>",
+      "Base URL for the Ollama HTTP API (e.g. http://localhost:11434)",
+    )
+    .option(
       "--chunk-size <size>",
       "Number of tag names to send to Ollama at once",
       (value: string) => parseInt(value, 10),
@@ -653,6 +728,17 @@ export function registerSynonymSuggestCommand(parent: Command): void {
       process.cwd(),
     )
     .action(async (tagName, options) => {
+      let ollamaUrl: string | undefined;
+      try {
+        ollamaUrl = normalizeOllamaUrl(options.ollamaUrl as string | undefined);
+      } catch (error) {
+        printErrorMessageWithReason(
+          "Invalid value for --ollama-url",
+          error as object,
+        );
+        return;
+      }
+
       const opts = {
         model: options.model as string,
         chunkSize: Number(options.chunkSize ?? DEFAULT_CHUNK_SIZE),
@@ -661,6 +747,7 @@ export function registerSynonymSuggestCommand(parent: Command): void {
         refreshCache: Boolean(options.refreshCache),
         dataDir: path.resolve(options.dataDir as string),
         outputDir: path.resolve(options.outputDir as string),
+        ollamaUrl,
       };
 
       try {
@@ -732,6 +819,13 @@ export function registerSynonymSuggestCommand(parent: Command): void {
           `Using cached analysis generated at ${cacheEntry.generated_at ?? "an unknown time"}.`,
         );
       } else {
+        if (!opts.ollamaUrl) {
+          printStatusMessage(
+            false,
+            "You must provide --ollama-url when refreshing or computing new synonym suggestions.",
+          );
+          return;
+        }
         printStatusMessage(true, "Collecting synonyms via Ollama...");
         try {
           const result = await collectSynonyms(
@@ -739,6 +833,7 @@ export function registerSynonymSuggestCommand(parent: Command): void {
             tags,
             opts.model,
             opts.chunkSize,
+            opts.ollamaUrl,
           );
           synonyms = result.synonyms;
           notes = result.notes;
