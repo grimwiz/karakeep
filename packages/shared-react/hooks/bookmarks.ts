@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { getBookmarkRefreshInterval } from "@karakeep/shared/utils/bookmarkUtils";
 
@@ -15,17 +15,44 @@ type DeleteBookmarkResult = Awaited<
   ReturnType<DeleteBookmarkMutation["mutateAsync"]>
 >;
 
-type DeleteQueueItem = {
+interface DeleteQueueItem {
   variables: DeleteBookmarkVariables;
   options?: DeleteBookmarkOptions;
   resolve?: (value: DeleteBookmarkResult) => void;
   reject?: (error: unknown) => void;
-};
+  dedupeKey?: string;
+}
 
-type DeleteQueueState = {
+interface DeleteQueueState {
   size: number;
   isProcessing: boolean;
-};
+}
+
+interface DeleteQueueDropContext {
+  variables: DeleteBookmarkVariables;
+  state: DeleteQueueState;
+}
+
+export interface DeleteQueueConfig {
+  dedupeByBookmarkId?: boolean;
+  maxQueueSize?: number;
+  onQueueOverflow?: (context: DeleteQueueDropContext) => void;
+  onDuplicate?: (context: DeleteQueueDropContext) => void;
+}
+
+type DeleteBookmarkOnError = NonNullable<DeleteBookmarkOptions["onError"]>;
+
+function triggerDeleteOnError(
+  options: DeleteBookmarkOptions | undefined,
+  error: Error,
+  variables: DeleteBookmarkVariables,
+) {
+  options?.onError?.(
+    error as Parameters<DeleteBookmarkOnError>[0],
+    variables,
+    undefined as Parameters<DeleteBookmarkOnError>[2],
+  );
+}
 
 const deleteQueueListeners = new Set<(state: DeleteQueueState) => void>();
 let deleteQueue: DeleteQueueItem[] = [];
@@ -36,17 +63,33 @@ let deleteQueueProcessor:
       options?: DeleteBookmarkOptions,
     ) => Promise<DeleteBookmarkResult>)
   | null = null;
+let currentDeleteQueueState: DeleteQueueState = {
+  size: 0,
+  isProcessing: false,
+};
+let currentProcessingDedupeKey: string | undefined;
+
+type EnqueueResult = { enqueued: true } | { enqueued: false; error: Error };
 
 function getDeleteQueueState(): DeleteQueueState {
-  return {
-    size: deleteQueue.length,
-    isProcessing: deleteQueueProcessing,
-  };
+  return currentDeleteQueueState;
 }
 
 function emitDeleteQueueState() {
-  const state = getDeleteQueueState();
-  deleteQueueListeners.forEach((listener) => listener(state));
+  const nextState: DeleteQueueState = {
+    size: deleteQueue.length,
+    isProcessing: deleteQueueProcessing,
+  };
+
+  if (
+    nextState.size === currentDeleteQueueState.size &&
+    nextState.isProcessing === currentDeleteQueueState.isProcessing
+  ) {
+    return;
+  }
+
+  currentDeleteQueueState = nextState;
+  deleteQueueListeners.forEach((listener) => listener(currentDeleteQueueState));
 }
 
 function subscribeToDeleteQueue(listener: (state: DeleteQueueState) => void) {
@@ -65,10 +108,12 @@ function processDeleteQueue() {
 
   const nextItem = deleteQueue.shift();
   if (!nextItem) {
+    currentProcessingDedupeKey = undefined;
     emitDeleteQueueState();
     return;
   }
 
+  currentProcessingDedupeKey = nextItem.dedupeKey;
   deleteQueueProcessing = true;
   emitDeleteQueueState();
 
@@ -80,6 +125,7 @@ function processDeleteQueue() {
       nextItem.reject?.(error);
     })
     .finally(() => {
+      currentProcessingDedupeKey = undefined;
       deleteQueueProcessing = false;
       emitDeleteQueueState();
       if (deleteQueue.length > 0) {
@@ -90,12 +136,58 @@ function processDeleteQueue() {
     });
 }
 
-function enqueueDeleteTask(task: DeleteQueueItem) {
+function enqueueDeleteTask(
+  task: DeleteQueueItem,
+  config?: DeleteQueueConfig,
+): EnqueueResult {
+  const currentState: DeleteQueueState = {
+    size: deleteQueue.length,
+    isProcessing: deleteQueueProcessing,
+  };
+
+  let dedupeKey: string | undefined;
+  if (config?.dedupeByBookmarkId) {
+    const bookmarkId = (task.variables as { bookmarkId?: string }).bookmarkId;
+    if (typeof bookmarkId === "string" && bookmarkId.trim().length > 0) {
+      dedupeKey = bookmarkId;
+    }
+  }
+
+  if (dedupeKey) {
+    const duplicateExists =
+      currentProcessingDedupeKey === dedupeKey ||
+      deleteQueue.some((item) => item.dedupeKey === dedupeKey);
+    if (duplicateExists) {
+      const error = new Error(
+        "A delete request for this bookmark is already queued.",
+      );
+      config?.onDuplicate?.({ variables: task.variables, state: currentState });
+      return { enqueued: false, error };
+    }
+    task.dedupeKey = dedupeKey;
+  }
+
+  if (typeof config?.maxQueueSize === "number" && config.maxQueueSize > 0) {
+    const totalInFlight = deleteQueue.length + (deleteQueueProcessing ? 1 : 0);
+    if (totalInFlight >= config.maxQueueSize) {
+      const error = new Error(
+        `Reached the delete queue limit of ${config.maxQueueSize} item(s).`,
+      );
+      config?.onQueueOverflow?.({
+        variables: task.variables,
+        state: currentState,
+      });
+      return { enqueued: false, error };
+    }
+  }
+
   deleteQueue.push(task);
   emitDeleteQueueState();
   if (!deleteQueueProcessing) {
     processDeleteQueue();
   }
+
+  return { enqueued: true };
 }
 
 export function useAutoRefreshingBookmarkQuery(
@@ -143,18 +235,38 @@ export function useCreateBookmarkWithPostHook(
   });
 }
 
+type DeleteBookmarkMutationOptions = Parameters<
+  typeof api.bookmarks.deleteBookmark.useMutation
+>[0];
+
 export function useDeleteBookmark(
-  ...opts: Parameters<typeof api.bookmarks.deleteBookmark.useMutation>
+  mutationOptions?: DeleteBookmarkMutationOptions,
+  queueConfig?: DeleteQueueConfig,
 ) {
   const apiUtils = api.useUtils();
+  const queueConfigRef = useRef<DeleteQueueConfig | undefined>(queueConfig);
+  const pendingInvalidationsRef = useRef(false);
+  const mutationOptionsRef = useRef<DeleteBookmarkMutationOptions | undefined>(
+    mutationOptions,
+  );
+
+  useEffect(() => {
+    queueConfigRef.current = queueConfig;
+  }, [queueConfig]);
+
+  useEffect(() => {
+    mutationOptionsRef.current = mutationOptions;
+  }, [mutationOptions]);
+
   const mutation = api.bookmarks.deleteBookmark.useMutation({
-    ...opts[0],
+    ...mutationOptions,
     onSuccess: (res, req, meta) => {
-      apiUtils.bookmarks.getBookmarks.invalidate();
-      apiUtils.bookmarks.searchBookmarks.invalidate();
+      pendingInvalidationsRef.current = true;
       apiUtils.bookmarks.getBookmark.invalidate({ bookmarkId: req.bookmarkId });
-      apiUtils.lists.stats.invalidate();
-      return opts[0]?.onSuccess?.(res, req, meta);
+      return mutationOptions?.onSuccess?.(res, req, meta);
+    },
+    onError: (error, req, meta) => {
+      mutationOptions?.onError?.(error, req, meta);
     },
   });
 
@@ -178,9 +290,34 @@ export function useDeleteBookmark(
     };
   }, [mutation.mutateAsync]);
 
+  useEffect(() => {
+    if (
+      !queueState.isProcessing &&
+      queueState.size === 0 &&
+      pendingInvalidationsRef.current
+    ) {
+      pendingInvalidationsRef.current = false;
+      apiUtils.bookmarks.getBookmarks.invalidate();
+      apiUtils.bookmarks.searchBookmarks.invalidate();
+      apiUtils.lists.stats.invalidate();
+    }
+  }, [queueState.isProcessing, queueState.size, apiUtils]);
+
   const mutateQueued = useCallback(
     (variables: DeleteBookmarkVariables, options?: DeleteBookmarkOptions) => {
-      enqueueDeleteTask({ variables, options });
+      const result = enqueueDeleteTask(
+        { variables, options },
+        queueConfigRef.current,
+      );
+
+      if (!result.enqueued) {
+        triggerDeleteOnError(options, result.error, variables);
+        triggerDeleteOnError(
+          mutationOptionsRef.current as DeleteBookmarkOptions | undefined,
+          result.error,
+          variables,
+        );
+      }
     },
     [],
   );
@@ -188,7 +325,19 @@ export function useDeleteBookmark(
   const mutateAsyncQueued = useCallback(
     (variables: DeleteBookmarkVariables, options?: DeleteBookmarkOptions) =>
       new Promise<DeleteBookmarkResult>((resolve, reject) => {
-        enqueueDeleteTask({ variables, options, resolve, reject });
+        const result = enqueueDeleteTask(
+          { variables, options, resolve, reject },
+          queueConfigRef.current,
+        );
+        if (!result.enqueued) {
+          triggerDeleteOnError(options, result.error, variables);
+          triggerDeleteOnError(
+            mutationOptionsRef.current as DeleteBookmarkOptions | undefined,
+            result.error,
+            variables,
+          );
+          reject(result.error);
+        }
       }),
     [],
   );

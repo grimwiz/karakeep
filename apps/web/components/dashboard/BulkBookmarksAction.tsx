@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   ActionButton,
@@ -35,6 +35,7 @@ import BulkTagModal from "./bookmarks/BulkTagModal";
 import { ArchivedActionIcon, FavouritedActionIcon } from "./bookmarks/icons";
 
 const MAX_CONCURRENT_BULK_ACTIONS = 50;
+const MAX_DELETE_QUEUE_SIZE = 500;
 
 export default function BulkBookmarksAction() {
   const { t } = useTranslation();
@@ -72,12 +73,37 @@ export default function BulkBookmarksAction() {
     });
   };
 
-  const deleteBookmarkMutator = useDeleteBookmark({
-    onSuccess: () => {
-      setIsBulkEditEnabled(false);
+  const deleteQueueConfig = useMemo(
+    () => ({
+      dedupeByBookmarkId: true,
+      maxQueueSize: MAX_DELETE_QUEUE_SIZE,
+      onDuplicate: () => {
+        toast({
+          description:
+            "One or more selected bookmarks are already queued for deletion.",
+        });
+      },
+      onQueueOverflow: () => {
+        toast({
+          variant: "destructive",
+          title: "Delete queue is full",
+          description:
+            "Too many bookmarks are queued right now. Wait for the current deletions to finish before adding more.",
+        });
+      },
+    }),
+    [toast],
+  );
+
+  const deleteBookmarkMutator = useDeleteBookmark(
+    {
+      onSuccess: () => {
+        setIsBulkEditEnabled(false);
+      },
+      onError,
     },
-    onError,
-  });
+    deleteQueueConfig,
+  );
 
   const updateBookmarkMutator = useUpdateBookmark({
     onSuccess: () => {

@@ -8,6 +8,7 @@ import {
 import { getAPIClient } from "@/lib/trpc";
 import { Command } from "@commander-js/extra-typings";
 import { getBorderCharacters, table } from "table";
+
 import { registerSynonymSuggestCommand } from "./tags/synonymSuggest";
 
 export const tagsCmd = new Command()
