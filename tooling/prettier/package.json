@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./web": "./web.js"
   },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",

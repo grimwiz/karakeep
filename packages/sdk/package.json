@@ -10,7 +10,25 @@
     "sdk"
   ],
   "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./package.json": "./package.json",
+    "./*": {
+      "types": "./src/*",
+      "import": "./src/*"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": ["src/*"],
+      "package.json": ["package.json"]
+    }
+  },
   "publishConfig": {
     "main": "./dist/index.js",
     "exports": "./dist/index.js",

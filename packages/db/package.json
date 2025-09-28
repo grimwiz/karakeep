@@ -4,7 +4,33 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "index.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./package.json": "./package.json",
+    "./drizzle": "./drizzle",
+    "./drizzle/*": "./drizzle/*",
+    "./migrate": "./migrate.ts",
+    "./migrate.ts": "./migrate.ts",
+    "./*": {
+      "types": "./src/*",
+      "import": "./src/*"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "drizzle": ["drizzle"],
+      "drizzle/*": ["drizzle/*"],
+      "migrate": ["migrate.ts"],
+      "migrate.ts": ["migrate.ts"],
+      "*": ["src/*"],
+      "package.json": ["package.json"]
+    }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "migrate": "tsx migrate.ts",
