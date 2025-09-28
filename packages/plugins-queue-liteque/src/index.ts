@@ -6,6 +6,7 @@ import {
   migrateDB,
 } from "liteque";
 
+import { PluginManager, PluginType } from "@karakeep/shared/plugins";
 import type { PluginProvider } from "@karakeep/shared/plugins";
 import type {
   DequeuedJob,
@@ -130,3 +131,9 @@ export class LitequeQueueProvider implements PluginProvider<QueueClient> {
     return this.client;
   }
 }
+
+PluginManager.register({
+  type: PluginType.Queue,
+  name: "Liteque",
+  provider: new LitequeQueueProvider(),
+});

@@ -8,7 +8,7 @@ import type {
   SearchOptions,
   SearchResponse,
 } from "@karakeep/shared/search";
-import { PluginProvider } from "@karakeep/shared/plugins";
+import { PluginManager, PluginProvider, PluginType } from "@karakeep/shared/plugins";
 
 import { envConfig } from "./env";
 
@@ -154,4 +154,12 @@ export class MeiliSearchProvider implements PluginProvider<SearchIndexClient> {
       await this.client!.waitForTask(taskId.taskUid);
     }
   }
+}
+
+if (MeiliSearchProvider.isConfigured()) {
+  PluginManager.register({
+    type: PluginType.Search,
+    name: "MeiliSearch",
+    provider: new MeiliSearchProvider(),
+  });
 }

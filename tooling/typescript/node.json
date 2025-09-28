@@ -4,8 +4,8 @@
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "build", "dist", ".next", ".expo"],
   "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "Node16",
+    "moduleResolution": "node16",
     "incremental": true,
     "isolatedModules": true,
     "strict": true,

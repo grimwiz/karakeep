@@ -46,7 +46,17 @@ const nextConfig = withPWA({
     ];
   },
 
-  // transpilePackages: ["@karakeep/shared", "@karakeep/db", "@karakeep/trpc"],
+  transpilePackages: [
+    "@karakeep/shared",
+    "@karakeep/shared-react",
+    "@karakeep/shared-server",
+    "@karakeep/trpc",
+    "@karakeep/sdk",
+    "@karakeep/api",
+    "@karakeep/db",
+    "@karakeep/plugins-queue-liteque",
+    "@karakeep/plugins-search-meilisearch",
+  ],
 
   /** We already do linting and typechecking as separate tasks in CI */
   eslint: { ignoreDuringBuilds: true },
