@@ -780,10 +780,10 @@ importers:
         version: 2.7.0(playwright@1.53.1)
       '@hono/node-server':
         specifier: ^1.19.0
-        version: 1.19.0(hono@4.7.11)
+        version: 1.19.0(hono@4.9.7)
       '@hono/prometheus':
         specifier: ^1.0.2
-        version: 1.0.2(hono@4.7.11)(prom-client@15.1.3)
+        version: 1.0.2(hono@4.9.7)(prom-client@15.1.3)
       '@karakeep/db':
         specifier: workspace:^0.1.0
         version: link:../../packages/db
@@ -821,8 +821,8 @@ importers:
         specifier: 9.3.1
         version: 9.3.1
       hono:
-        specifier: ^4.7.10
-        version: 4.7.11
+        specifier: ^4.9.7
+        version: 4.9.7
       http-proxy-agent:
         specifier: ^7.0.2
         version: 7.0.2
@@ -980,13 +980,13 @@ importers:
     dependencies:
       '@hono/prometheus':
         specifier: ^1.0.2
-        version: 1.0.2(hono@4.7.11)(prom-client@15.1.3)
+        version: 1.0.2(hono@4.9.7)(prom-client@15.1.3)
       '@hono/trpc-server':
         specifier: ^0.4.0
-        version: 0.4.0(@trpc/server@11.4.3(typescript@5.8.3))(hono@4.7.11)
+        version: 0.4.0(@trpc/server@11.4.3(typescript@5.8.3))(hono@4.9.7)
       '@hono/zod-validator':
         specifier: ^0.5.0
-        version: 0.5.0(hono@4.7.11)(zod@3.24.2)
+        version: 0.5.0(hono@4.9.7)(zod@3.24.2)
       '@karakeep/db':
         specifier: workspace:*
         version: link:../db
@@ -1006,8 +1006,8 @@ importers:
         specifier: ^0.44.2
         version: 0.44.2(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.3.0)(gel@2.1.0)(kysely@0.28.5)
       hono:
-        specifier: ^4.7.10
-        version: 4.7.11
+        specifier: ^4.9.7
+        version: 4.9.7
       prom-client:
         specifier: ^15.1.3
         version: 15.1.3
@@ -9026,8 +9026,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.7.11:
-    resolution: {integrity: sha512-rv0JMwC0KALbbmwJDEnxvQCeJh+xbS3KEWW5PC9cMJ08Ur9xgatI0HmtgYZfOdOSOeYsp5LO2cOhdI8cLEbDEQ==}
+  hono@4.9.7:
+    resolution: {integrity: sha512-t4Te6ERzIaC48W3x4hJmBwgNlLhmiEdEE5ViYb02ffw4ignHNHa5IBtPjmbKstmtKa8X6C35iWwK4HaqvrzG9w==}
     engines: {node: '>=16.9.0'}
 
   hookable@5.5.3:
@@ -18385,23 +18385,23 @@ snapshots:
     dependencies:
       '@hapi/hoek': 9.3.0
 
-  '@hono/node-server@1.19.0(hono@4.7.11)':
+  '@hono/node-server@1.19.0(hono@4.9.7)':
     dependencies:
-      hono: 4.7.11
+      hono: 4.9.7
 
-  '@hono/prometheus@1.0.2(hono@4.7.11)(prom-client@15.1.3)':
+  '@hono/prometheus@1.0.2(hono@4.9.7)(prom-client@15.1.3)':
     dependencies:
-      hono: 4.7.11
+      hono: 4.9.7
       prom-client: 15.1.3
 
-  '@hono/trpc-server@0.4.0(@trpc/server@11.4.3(typescript@5.8.3))(hono@4.7.11)':
+  '@hono/trpc-server@0.4.0(@trpc/server@11.4.3(typescript@5.8.3))(hono@4.9.7)':
     dependencies:
       '@trpc/server': 11.4.3(typescript@5.8.3)
-      hono: 4.7.11
+      hono: 4.9.7
 
-  '@hono/zod-validator@0.5.0(hono@4.7.11)(zod@3.24.2)':
+  '@hono/zod-validator@0.5.0(hono@4.9.7)(zod@3.24.2)':
     dependencies:
-      hono: 4.7.11
+      hono: 4.9.7
       zod: 3.24.2
 
   '@hookform/error-message@2.0.1(react-dom@19.1.0(react@19.1.0))(react-hook-form@7.62.0(react@19.1.0))(react@19.1.0)':
@@ -24635,7 +24635,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.7.11: {}
+  hono@4.9.7: {}
 
   hookable@5.5.3: {}
 
