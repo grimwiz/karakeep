@@ -51,7 +51,7 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.8.3",
-    "vite": "^7.0.7"
+    "vite": "^7.1.11"
   },
   "prettier": "@karakeep/prettier-config"
 }
